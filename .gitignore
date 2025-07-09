@@ -71,4 +71,4 @@ node_modules/
 .env
 
 # Firebase auth config (custom)
-src/firebaseAuth.ts
+firebaseAuth.ts
