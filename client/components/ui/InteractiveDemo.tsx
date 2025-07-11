@@ -192,4 +192,224 @@ export default function InteractiveDemo() {
         return "bg-gray-600/20 text-gray-400 border-gray-600/30"
     }
   }
+
+if (!isActive && currentProblem === 0 && score === 0) {
+    return (
+      <Card className="bg-gray-800 border-gray-700 animate-on-scroll" data-animation="animate-scale-in">
+        <CardHeader className="text-center">
+          <CardTitle className="text-white text-2xl mb-4">Interactive AMC Demo</CardTitle>
+          <CardDescription className="text-gray-400 text-lg">
+            Experience our adaptive learning system with real AMC problems. Get instant feedback, hints, and detailed
+            explanations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <Target className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+              <div className="text-white font-semibold">Real AMC Problems</div>
+              <div className="text-gray-400 text-sm">Authentic competition questions</div>
+            </div>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <Lightbulb className="h-6 w-6 text-yellow-400 mx-auto mb-2" />
+              <div className="text-white font-semibold">Smart Hints</div>
+              <div className="text-gray-400 text-sm">Adaptive guidance system</div>
+            </div>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <TrendingUp className="h-6 w-6 text-green-400 mx-auto mb-2" />
+              <div className="text-white font-semibold">Instant Analytics</div>
+              <div className="text-gray-400 text-sm">Performance tracking</div>
+            </div>
+          </div>
+          <Button
+            onClick={startDemo}
+            size="lg"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all duration-200"
+          >
+            Start Demo
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Progress and Stats Bar */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex items-center space-x-4">
+              <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30">
+                Problem {currentProblem + 1} of {sampleProblems.length}
+              </Badge>
+              <Badge className={getDifficultyColor(problem.difficulty)}>{problem.difficulty}</Badge>
+              <Badge className="bg-purple-600/20 text-purple-400 border-purple-600/30">{problem.topic}</Badge>
+            </div>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-gray-400" />
+                <span className={`font-mono ${timeLeft < 30 ? "text-red-400" : "text-gray-300"}`}>
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Target className="h-4 w-4 text-green-400" />
+                <span className="text-green-400 font-semibold">Score: {score}</span>
+              </div>
+              {xpGained > 0 && (
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-4 w-4 text-yellow-400" />
+                  <span className="text-yellow-400 font-semibold">+{xpGained} XP</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <Progress value={((120 - timeLeft) / 120) * 100} className="mt-3" />
+        </CardContent>
+      </Card>
+
+      {/* Problem Card */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white text-xl">{problem.question}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3">
+            {problem.options.map((option, index) => (
+              <button
+                key={index}
+                onClick={() => !showResult && setSelectedAnswer(index)}
+                disabled={showResult}
+                className={`p-4 text-left rounded-lg border transition-all duration-200 ${
+                  showResult
+                    ? index === problem.correctAnswer
+                      ? "bg-green-600/20 border-green-600 text-green-400"
+                      : index === selectedAnswer && index !== problem.correctAnswer
+                        ? "bg-red-600/20 border-red-600 text-red-400"
+                        : "bg-gray-700 border-gray-600 text-gray-400"
+                    : selectedAnswer === index
+                      ? "bg-blue-600/20 border-blue-600 text-blue-400"
+                      : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <span className="font-semibold">({String.fromCharCode(65 + index)})</span>
+                  <span>{option}</span>
+                  {showResult && index === problem.correctAnswer && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
+                  {showResult && index === selectedAnswer && index !== problem.correctAnswer && (
+                    <XCircle className="h-5 w-5 text-red-400 ml-auto" />
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            {!showResult ? (
+              <>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={selectedAnswer === null}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  Submit Answer
+                </Button>
+                <Button
+                  onClick={() => setShowHint(!showHint)}
+                  variant="outline"
+                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                >
+                  <Lightbulb className="h-4 w-4 mr-2" />
+                  {showHint ? "Hide Hint" : "Show Hint"}
+                </Button>
+              </>
+            ) : (
+              <div className="flex gap-3">
+                {currentProblem < sampleProblems.length - 1 ? (
+                  <Button onClick={nextProblem} className="bg-green-600 hover:bg-green-700">
+                    Next Problem
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                ) : (
+                  <Button onClick={resetDemo} className="bg-purple-600 hover:bg-purple-700">
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Try Again
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Hint */}
+          {showHint && (
+            <Card className="bg-yellow-600/10 border-yellow-600/30">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-yellow-400 font-semibold mb-1">Hint:</div>
+                    <div className="text-gray-300">{problem.hint}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Explanation */}
+          {showResult && (
+            <Card className="bg-blue-600/10 border-blue-600/30">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-2">
+                  <div className="flex-shrink-0">
+                    {selectedAnswer === problem.correctAnswer ? (
+                      <CheckCircle className="h-5 w-5 text-green-400 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-400 mt-0.5" />
+                    )}
+                  </div>
+                  <div>
+                    <div
+                      className={`font-semibold mb-2 ${
+                        selectedAnswer === problem.correctAnswer ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {selectedAnswer === problem.correctAnswer ? "Correct!" : "Incorrect"}
+                      {selectedAnswer === problem.correctAnswer && xpGained > 0 && (
+                        <span className="text-yellow-400 ml-2">+{xpGained} XP earned!</span>
+                      )}
+                    </div>
+                    <div className="text-gray-300">{problem.explanation}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Demo Complete */}
+      {showResult && currentProblem === sampleProblems.length - 1 && (
+        <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-600/30">
+          <CardContent className="p-6 text-center">
+            <Trophy className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-white mb-2">Demo Complete!</h3>
+            <p className="text-gray-300 mb-4">
+              You scored {score} out of {sampleProblems.length} problems. Ready to unlock your full potential?
+            </p>
+            <Button
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all duration-200"
+            >
+              Start Your Free Trial
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
 }
