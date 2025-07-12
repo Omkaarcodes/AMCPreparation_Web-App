@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Libertinus+Math&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200..900&display=swap');
+
 @layer theme, custom-base, custom-components, custom-utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(custom-base);
@@ -6,6 +8,7 @@
 
 @theme{
   --font-libertinus-math: Libertinus Math, "sans-serif";
+  --font-noto-serif-jp: Noto Serif JP, "sans-serif";
 }
 @layer custom-base {
   :root {

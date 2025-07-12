@@ -140,7 +140,22 @@ export default function LandingPage() {
       section.scrollIntoView({ behavior: "smooth" })
     }
   }
+  const globalStyles = `
+    * {
+      font-family: 'Noto Serif JP', serif !important;
+    }
+  `;
 
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = globalStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+  
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       {/* Header */}
@@ -211,7 +226,7 @@ export default function LandingPage() {
                 AMC 10/12 Preparation Platform
               </Badge>
               <h1
-                className="font-libertinus-math text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight animate-on-scroll animate-delay-200"
+                className="font-noto-serif-jp text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight animate-on-scroll animate-delay-200"
                 data-animation="animate-fade-in-up"
               >
                 Master Math Competitions
@@ -219,7 +234,7 @@ export default function LandingPage() {
                 <span className="font-libertinus-math text-blue-400">Through Intelligent Practice</span>
               </h1>
               <p
-                className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed animate-on-scroll animate-delay-300"
+                className="font-noto-serif-jp text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed animate-on-scroll animate-delay-300"
                 data-animation="animate-fade-in-up"
               >
                 Transform your AMC prep with adaptive quizzes, spaced repetition, detailed analytics, and gamified
@@ -228,7 +243,7 @@ export default function LandingPage() {
             </div>
 
             <div
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-on-scroll animate-delay-400"
+              className="font-noto-serif-jp flex flex-col sm:flex-row gap-4 justify-center items-center animate-on-scroll animate-delay-400"
               data-animation="animate-fade-in-up"
             >
               <Button size="lg">
