@@ -7,6 +7,6 @@ import TestComponent from '../TestComponent'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AMCLandingPage />
+    <TestComponent />
   </React.StrictMode>,
 )

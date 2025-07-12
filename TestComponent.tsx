@@ -1,314 +1,222 @@
-"use client"
-
 import * as React from "react"
 import {
-  ColumnDef,
-  ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  VisibilityState,
-} from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react"
-
-import { Button } from "./client/src/components/ui/button"
-import { Checkbox } from "./client/src/components/ui/checkbox"
-import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./client/src/components/ui/dropdown-menu"
-import { Input } from "./client/src/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./client/src/components/ui/table"
+import { User, Settings, CreditCard, Keyboard, Users, Plus, Github, HelpCircle, LogOut } from "lucide-react"
 
-const data: Payment[] = [
-  {
-    id: "m5gr84i9",
-    amount: 316,
-    status: "success",
-    email: "ken99@example.com",
-  },
-  {
-    id: "3u1reuv4",
-    amount: 242,
-    status: "success",
-    email: "Abe45@example.com",
-  },
-  {
-    id: "derv1ws0",
-    amount: 837,
-    status: "processing",
-    email: "Monserrat44@example.com",
-  },
-  {
-    id: "5kma53ae",
-    amount: 874,
-    status: "success",
-    email: "Silas22@example.com",
-  },
-  {
-    id: "bhqecj4p",
-    amount: 721,
-    status: "failed",
-    email: "carmella@example.com",
-  },
-]
+// Button component to match your design system
+const Button = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: "default" | "outline" | "ghost"
+    size?: "default" | "sm" | "lg"
+  }
+>(({ className, variant = "default", size = "default", ...props }, ref) => {
+  const baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+  
+  const variants = {
+    default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md",
+    outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-sm hover:shadow-md hover:scale-105 active:scale-95",
+    ghost: "hover:bg-accent hover:text-accent-foreground"
+  }
+  
+  const sizes = {
+    default: "h-10 px-4 py-2",
+    sm: "h-9 rounded-md px-3",
+    lg: "h-11 rounded-md px-8"
+  }
+  
+  return (
+    <button
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className || ''}`}
+      ref={ref}
+      {...props}
+    />
+  )
+})
+Button.displayName = "Button"
 
-export type Payment = {
-  id: string
-  amount: number
-  status: "pending" | "processing" | "success" | "failed"
-  email: string
+function DropdownMenuDemo() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <User className="h-4 w-4" />
+          Open Menu
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent 
+        className="w-56 bg-popover/95 backdrop-blur-sm border border-border shadow-2xl rounded-lg animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95" 
+        align="start"
+      >
+        <DropdownMenuLabel className="text-popover-foreground font-semibold">My Account</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <User className="mr-2 h-4 w-4" />
+            Profile
+            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <CreditCard className="mr-2 h-4 w-4" />
+            Billing
+            <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <Keyboard className="mr-2 h-4 w-4" />
+            Keyboard shortcuts
+            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <Users className="mr-2 h-4 w-4" />
+            Team
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+              <Plus className="mr-2 h-4 w-4" />
+              Invite users
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="bg-popover/95 backdrop-blur-sm border border-border shadow-2xl rounded-lg animate-in fade-in-0 zoom-in-95">
+                <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+                  Email
+                </DropdownMenuItem>
+                <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+                  Message
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+                  More...
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+            <Plus className="mr-2 h-4 w-4" />
+            New Team
+            <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+          <Github className="mr-2 h-4 w-4" />
+          GitHub
+        </DropdownMenuItem>
+        <DropdownMenuItem className="transition-all duration-200 hover:bg-accent/80 cursor-pointer">
+          <HelpCircle className="mr-2 h-4 w-4" />
+          Support
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
+          API
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="transition-all duration-200 hover:bg-destructive/10 hover:text-destructive cursor-pointer">
+          <LogOut className="mr-2 h-4 w-4" />
+          Log out
+          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
-export const columns: ColumnDef<Payment>[] = [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("status")}</div>
-    ),
-  },
-  {
-    accessorKey: "email",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Email
-          <ArrowUpDown />
-        </Button>
-      )
-    },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
-  },
-  {
-    accessorKey: "amount",
-    header: () => <div className="text-right">Amount</div>,
-    cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("amount"))
-
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount)
-
-      return <div className="text-right font-medium">{formatted}</div>
-    },
-  },
-  {
-    id: "actions",
-    enableHiding: false,
-    cell: ({ row }) => {
-      const payment = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(payment.id)}
-            >
-              Copy payment ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
-            <DropdownMenuItem>View payment details</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
-]
-
-export function DataTableDemo() {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
-  const [rowSelection, setRowSelection] = React.useState({})
-
-  const table = useReactTable({
-    data,
-    columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-    },
-  })
-
+export default function DropdownDemoWrapper() {
   return (
-    <div className="w-full">
-      <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns <ChevronDown />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="text-muted-foreground flex-1 text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4 animate-in fade-in-0 slide-in-from-top-4 duration-700">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            Enhanced Dropdown Menu Demo
+          </h1>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            A styled dropdown menu with animations, proper opacity, and enhanced user experience
+          </p>
         </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
+
+        {/* Demo Section */}
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="p-8 bg-card/50 backdrop-blur-sm border border-border rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 animate-in fade-in-0 zoom-in-95 delay-300">
+            <div className="text-center space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-card-foreground">
+                  Interactive Dropdown Menu
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Click the button below to explore the enhanced dropdown menu
+                </p>
+              </div>
+              
+              <div className="flex justify-center">
+                <DropdownMenuDemo />
+              </div>
+              
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>✨ Enhanced with backdrop blur and proper opacity</p>
+                <p>🎨 Smooth animations and hover effects</p>
+                <p>⌨️ Keyboard shortcuts and accessibility</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-700 delay-500">
+          <div className="p-6 bg-card/30 backdrop-blur-sm border border-border rounded-xl hover:bg-card/50 transition-all duration-300">
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Settings className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold text-card-foreground">Enhanced Styling</h3>
+              <p className="text-sm text-muted-foreground">
+                Proper opacity, backdrop blur, and shadow effects for better visual hierarchy
+              </p>
+            </div>
+          </div>
+          
+          <div className="p-6 bg-card/30 backdrop-blur-sm border border-border rounded-xl hover:bg-card/50 transition-all duration-300">
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold text-card-foreground">Smooth Animations</h3>
+              <p className="text-sm text-muted-foreground">
+                Fluid entrance and exit animations with proper timing and easing
+              </p>
+            </div>
+          </div>
+          
+          <div className="p-6 bg-card/30 backdrop-blur-sm border border-border rounded-xl hover:bg-card/50 transition-all duration-300">
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Keyboard className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold text-card-foreground">Accessible Design</h3>
+              <p className="text-sm text-muted-foreground">
+                Keyboard navigation, proper focus states, and semantic markup
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-
-export default DataTableDemo;
