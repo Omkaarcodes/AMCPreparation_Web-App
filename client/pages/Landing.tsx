@@ -123,9 +123,9 @@ export default function LandingPage() {
   ]
 
   const stats = [
-    { value: "10,000+", label: "Practice Problems", color: "text-blue-400" },
-    { value: "95%", label: "Score Improvement", color: "text-green-400" },
-    { value: "50,000+", label: "Students Helped", color: "text-purple-400" },
+    { value: "4,000+", label: "Practice Problems", color: "text-blue-400" },
+    { value: "30%+", label: "Score Improvement", color: "text-green-400" },
+    { value: "1,000+", label: "Students Helped", color: "text-purple-400" },
   ]
 
   const footerLinks = {
