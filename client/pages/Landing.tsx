@@ -1,4 +1,3 @@
-"use client"
 
 import { Button } from "../components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/infocard"
@@ -23,6 +22,7 @@ import {
 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import InteractiveDemo from "../components/ui/InteractiveDemo"
+
 
 export default function LandingPage() {
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -129,9 +129,9 @@ export default function LandingPage() {
   ]
 
   const footerLinks = {
-    Product: ["Features", "Demo", "API", "Integrations"],
+    Product: ["Features", "Demo"],
     Resources: ["Documentation", "Blog", "Help Center", "Community"],
-    Company: ["About", "Careers", "Privacy", "Terms"],
+    Company: ["About", "Privacy", "Terms"],
   }
 
   const scrollToSection = (id: string) => {
@@ -183,10 +183,20 @@ export default function LandingPage() {
               </a>
             </nav>
             <div className="flex items-center space-x-4">
+              
+              <Button
+                size="lg"
+                variant="ghost"
+                onClick={() => scrollToSection("about")}
+                className="bg-transparent" // Remove explicit bg-transparent as it's handled by variant
+              >
+                {" "}
+                About
+              </Button>
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">
                 Sign In
               </Button>
-              <Button>
+              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">
                 {" "}
                 {/* Uses default shadow */}
                 Get Started
@@ -382,7 +392,7 @@ export default function LandingPage() {
               className="text-xl text-gray-400 max-w-2xl mx-auto animate-on-scroll animate-delay-100"
               data-animation="animate-fade-in-up"
             >
-              Experience our adaptive problem-solving system with this interactive demo. Solve real AMC problems and see
+              Experience our problem-solving system with this interactive demo. Solve real AMC problems and see
               how our platform provides instant feedback and explanations.
             </p>
           </div>
@@ -417,13 +427,13 @@ export default function LandingPage() {
                     <Brain className="h-10 w-10 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-white">Alex Chen</h3>
+                    <h3 className="text-2xl font-bold text-white">Omkaar Sampigeadi</h3>
                     <p className="text-blue-400 font-medium">Founder & Lead Developer</p>
                   </div>
                 </div>
                 <div className="space-y-4 text-gray-300">
                   <p>
-                    As a former AMC competitor who qualified for AIME multiple times, I understand the challenges
+                    As a former AMC competitor who has qualified for the American Invitational Mathematics Examination (AIME), I understand the challenges
                     students face when preparing for math competitions. The lack of personalized, adaptive practice
                     tools motivated me to create AMCraft.
                   </p>
@@ -436,27 +446,27 @@ export default function LandingPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 animate-on-scroll" data-animation="animate-fade-in-right">
-              <div className="bg-gray-800 p-6 rounded-lg text-center">
+              {/* <div className="bg-gray-800 p-6 rounded-lg text-center">
                 <GraduationCap className="h-8 w-8 text-blue-400 mx-auto mb-3" />
                 <div className="text-2xl font-bold text-white">MS</div>
                 <div className="text-gray-400">Computer Science</div>
                 <div className="text-sm text-gray-500 mt-1">Stanford University</div>
-              </div>
+              </div> */}
               <div className="bg-gray-800 p-6 rounded-lg text-center">
                 <Trophy className="h-8 w-8 text-yellow-400 mx-auto mb-3" />
                 <div className="text-2xl font-bold text-white">AIME</div>
                 <div className="text-gray-400">Qualifier</div>
-                <div className="text-sm text-gray-500 mt-1">3 consecutive years</div>
+                <div className="text-sm text-gray-500 mt-1">2025</div>
               </div>
               <div className="bg-gray-800 p-6 rounded-lg text-center">
                 <Users className="h-8 w-8 text-green-400 mx-auto mb-3" />
-                <div className="text-2xl font-bold text-white">500+</div>
+                <div className="text-2xl font-bold text-white">100+</div>
                 <div className="text-gray-400">Students Tutored</div>
-                <div className="text-sm text-gray-500 mt-1">Over 5 years</div>
+                <div className="text-sm text-gray-500 mt-1">Over 3 years</div>
               </div>
               <div className="bg-gray-800 p-6 rounded-lg text-center">
                 <Star className="h-8 w-8 text-purple-400 mx-auto mb-3" />
-                <div className="text-2xl font-bold text-white">2019</div>
+                <div className="text-2xl font-bold text-white">2023</div>
                 <div className="text-gray-400">Teaching Since</div>
                 <div className="text-sm text-gray-500 mt-1">Competition Math</div>
               </div>
@@ -468,10 +478,10 @@ export default function LandingPage() {
               <CardHeader>
                 <CardTitle className="text-white text-xl">My Mission</CardTitle>
                 <CardDescription className="text-gray-300 text-lg leading-relaxed">
-                  "I believe every student with mathematical curiosity deserves access to high-quality competition
+                  I believe every student with mathematical curiosity deserves access to high-quality competition
                   preparation. AMCraft represents my commitment to democratizing math competition education through
                   technology, making it possible for students worldwide to reach their full potential regardless of
-                  their geographic location or economic background."
+                  their geographic location or economic background.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -566,7 +576,7 @@ export default function LandingPage() {
               <Button size="lg">
                 {" "}
                 {/* Uses default shadow */}
-                Start Your Free Trial
+                Get Started
               </Button>
               <Button
                 size="lg"
@@ -584,7 +594,7 @@ export default function LandingPage() {
               className="text-sm text-gray-400 animate-on-scroll animate-delay-300"
               data-animation="animate-fade-in-up"
             >
-              No credit card required • 14-day free trial • Cancel anytime
+              Start your journey towards AMC mastery today! No credit card required, just pure math practice!
             </p>
           </div>
         </div>

@@ -1,8 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@layer theme, custom-base, custom-components, custom-utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(custom-base);
+@import "tailwindcss/utilities.css" layer(custom-utilities);
 
-@layer base {
+@layer custom-base {
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
@@ -70,7 +71,7 @@
   }
 }
 
-@layer utilities {
+@layer custom-utilities {
   /* Scroll animations */
   @keyframes fadeInUp {
     from {
