@@ -7,7 +7,7 @@ const config = {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}",
+    "./*.{js,ts,jsx,tsx,mdx}", // Ensure root files like LandingPage.tsx are included
   ],
   prefix: "",
   theme: {
@@ -32,6 +32,7 @@ const config = {
         ],
       },
       colors: {
+        // Light mode colors (from :root in globals.css)
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -65,6 +66,12 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Chart colors (these are also defined as CSS variables in globals.css)
+        "chart-1": "hsl(var(--chart-1))",
+        "chart-2": "hsl(var(--chart-2))",
+        "chart-3": "hsl(var(--chart-3))",
+        "chart-4": "hsl(var(--chart-4))",
+        "chart-5": "hsl(var(--chart-5))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -87,7 +94,7 @@ const config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")]
+  plugins: [require("tailwindcss-animate")],
 } satisfies Config
 
 export default config
