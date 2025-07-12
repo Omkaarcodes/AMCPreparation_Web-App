@@ -35,9 +35,7 @@ export default function AnimationTest() {
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
             <h2 className="text-xl font-semibold text-white mb-4">Hover Effects</h2>
             <div className="space-y-4">
-              <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded transition-colors duration-300">
-                Hover Me
-              </button>
+              
               <div className="w-full h-16 bg-gradient-to-r from-pink-500 to-yellow-500 rounded transform hover:scale-105 transition-transform duration-300 cursor-pointer"></div>
               <div className="w-full h-16 bg-cyan-500 rounded hover:rotate-6 transition-transform duration-300 cursor-pointer"></div>
             </div>
