@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import AMCLandingPage from './pages/Landing'
+import AMCLandingPage from '../client/pages/Landing'
 import './index.css'
 import TestComponent from '../TestComponent'
 import HeroSection from '../backgroundimagetest'

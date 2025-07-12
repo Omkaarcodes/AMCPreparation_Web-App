@@ -219,12 +219,7 @@ export default function LandingPage() {
         <div className="container mx-auto max-w-6xl">
           <div className="text-center space-y-8">
             <div className="space-y-4">
-              <Badge
-                className="font-libertinus-math bg-blue-600/20 text-blue-400 border-blue-600/30 px-4 py-1 animate-on-scroll animate-delay-100"
-                data-animation="animate-fade-in-up"
-              >
-                AMC 10/12 Preparation Platform
-              </Badge>
+              
               <h1
                 className="font-noto-serif-jp text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight animate-on-scroll animate-delay-200"
                 data-animation="animate-fade-in-up"
