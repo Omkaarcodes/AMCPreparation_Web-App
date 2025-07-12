@@ -152,13 +152,13 @@ export default function LandingPage() {
               <span className="text-xl font-bold">AMCraft</span>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
-              <a
-                href="#features"
+              <button
                 onClick={() => scrollToSection("features")}
-                className="text-gray-300 hover:text-white transition-colors"
+                className="text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
               >
-                Features
-              </a>
+                
+                <span>Features</span>
+              </button>
               <button
                 onClick={() => scrollToSection("demo")}
                 className="text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
@@ -166,33 +166,24 @@ export default function LandingPage() {
                 <Play className="h-4 w-4" />
                 <span>Demo</span>
               </button>
-              <a
-                href="#about"
+              <button
                 onClick={() => scrollToSection("about")}
-                className="text-gray-300 hover:text-white transition-colors"
+                className="text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
               >
-                About
-              </a>
-              <a
-                href="#suggest"
+               
+                <span>About</span>
+              </button>
+              <button
                 onClick={() => scrollToSection("suggest")}
                 className="text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
               >
-                <Lightbulb className="h-4 w-4" />
+              
                 <span>Suggest Ideas</span>
-              </a>
+              </button>
             </nav>
             <div className="flex items-center space-x-4">
               
-              <Button
-                size="lg"
-                variant="ghost"
-                onClick={() => scrollToSection("about")}
-                className="bg-transparent" // Remove explicit bg-transparent as it's handled by variant
-              >
-                {" "}
-                About
-              </Button>
+              
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">
                 Sign In
               </Button>
@@ -205,7 +196,9 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
-
+    <div className="relative h-screen bg-cover bg-center bg-no-repeat" 
+         style={{ backgroundImage: "url('./attached_assets/LandingPageBackground.jpg')" }}>
+        <div className="absolute inset-0 bg-black opacity-50"></div>
       {/* Hero Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="container mx-auto max-w-6xl">
@@ -272,6 +265,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      </div>
 
       {/* Features Section */}
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-800/50">
