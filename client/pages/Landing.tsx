@@ -205,18 +205,18 @@ export default function LandingPage() {
           <div className="text-center space-y-8">
             <div className="space-y-4">
               <Badge
-                className="bg-blue-600/20 text-blue-400 border-blue-600/30 px-4 py-1 animate-on-scroll animate-delay-100"
+                className="font-libertinus-math bg-blue-600/20 text-blue-400 border-blue-600/30 px-4 py-1 animate-on-scroll animate-delay-100"
                 data-animation="animate-fade-in-up"
               >
                 AMC 10/12 Preparation Platform
               </Badge>
               <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight animate-on-scroll animate-delay-200"
+                className="font-libertinus-math text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight animate-on-scroll animate-delay-200"
                 data-animation="animate-fade-in-up"
               >
                 Master Math Competitions
                 <br />
-                <span className="text-blue-400">Through Intelligent Practice</span>
+                <span className="font-libertinus-math text-blue-400">Through Intelligent Practice</span>
               </h1>
               <p
                 className="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed animate-on-scroll animate-delay-300"

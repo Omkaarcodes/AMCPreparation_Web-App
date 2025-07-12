@@ -1,8 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Libertinus+Math&display=swap');
 @layer theme, custom-base, custom-components, custom-utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(custom-base);
 @import "tailwindcss/utilities.css" layer(custom-utilities);
 
+@theme{
+  --font-libertinus-math: Libertinus Math, "sans-serif";
+}
 @layer custom-base {
   :root {
     --background: 0 0% 100%;
