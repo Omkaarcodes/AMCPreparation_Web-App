@@ -51,7 +51,7 @@ const SignUpForm =  ({
     const signUpWithEmail = async () => {
         // Check if passwords match
         if (password !== confirmPassword) {
-            setError('Passwords do not match');
+            setError('Oops! The passwords do not match.');
             return;
         }
 
