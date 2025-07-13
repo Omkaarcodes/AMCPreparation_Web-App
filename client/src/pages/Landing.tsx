@@ -163,7 +163,7 @@ export default function LandingPage() {
   }
 
   const handleGetStarted = () => {
-    navigate('/login')
+    navigate('/sign-up')
   }
 
   
@@ -213,7 +213,7 @@ export default function LandingPage() {
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800" onClick={handleSignIn}>
                 Sign In
               </Button>
-              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">
+              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800" onClick={handleGetStarted}>
                 {" "}
                 {/* Uses default shadow */}
                 Get Started

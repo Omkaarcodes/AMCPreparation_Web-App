@@ -6,8 +6,9 @@ import { Card, CardContent } from "./ui/card"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { ArrowLeft } from "lucide-react"
+import { Sign } from "crypto"
 
-export function LoginForm({
+export function SignUpForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
@@ -35,14 +36,14 @@ export function LoginForm({
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col items-center text-center">
                   <h1 className=" font-noto-serif-jp text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                    Welcome back
+                    Hello There!
                   </h1>
                   <p className=" font-noto-serif-jp text-balance text-muted-foreground">
-                    Login to your AMCraft account
+                    Create your AMCraft account
                   </p>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email" className="text-gray-700 font-noto-serif-jp">Email</Label>
+                  <Label htmlFor="email" className="text-gray-700 font-noto-serif-jp">Your Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -53,13 +54,8 @@ export function LoginForm({
                 </div>
                 <div className="grid gap-2">
                   <div className="flex items-center">
-                    <Label htmlFor="password" className="text-gray-700 font-noto-serif-jp">Password</Label>
-                    <a
-                      href="#"
-                      className="ml-auto text-sm underline-offset-2 hover:underline text-purple-600 hover:text-purple-700 transition-colors font-noto-serif-jp"
-                    >
-                      Forgot your password?
-                    </a>
+                    <Label htmlFor="password" className="text-gray-700 font-noto-serif-jp">Your Password</Label>
+                    
                   </div>
                   <Input 
                     id="password" 
@@ -72,11 +68,11 @@ export function LoginForm({
                   type="submit" 
                   className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 text-white font-medium py-2.5 font-noto-serif-jp"
                 >
-                  Login
+                  Sign Up!
                 </Button>
                 <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                   <span className="relative z-10 bg-white px-2 text-muted-foreground font-noto-serif-jp">
-                    Or continue with
+                    Or Sign Up With:
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -143,4 +139,4 @@ export function LoginForm({
     </div>
   )
 }
-export default LoginForm
+export default SignUpForm
