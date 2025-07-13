@@ -1,17 +1,26 @@
-import { useEffect,useRef } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { cn } from "../../lib/utils"
-import { Button } from "./ui/button"
-import { Card, CardContent } from "./ui/card"
-import { Input } from "./ui/input"
-import { Label } from "./ui/label"
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
+import { cn } from "../../../../lib/utils"
+import { Button } from "../../ui/button"
+import { Card, CardContent } from "../../ui/card"
+import { Input } from "../../ui/input"
+import { Label } from "../../ui/label"
 import { ArrowLeft } from "lucide-react"
 
-export function LoginForm({
+const LoginForm = ({
   className,
   ...props
-}: React.ComponentProps<"div">) {
-  const navigate = useNavigate()
+}: React.ComponentProps<"div">) => {
+
+  const navigate = useNavigate();
+  const auth = getAuth();
+
+  // State variables for managing authentication state, email, password, and error messages
+  const [authing, setAuthing] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleBackToHome = () => {
     navigate('/')
@@ -20,7 +29,43 @@ export function LoginForm({
   const handleSignUp = () => {
     navigate('/sign-up')
   }
+  
+  // Function to handle sign-in with Google
+    const signInWithGoogle = async () => {
+        setAuthing(true);
+        
+        // Use Firebase to sign in with Google
+        signInWithPopup(auth, new GoogleAuthProvider())
+            .then(response => {
+                console.log(response.user.uid);
+                navigate('/');
+            })
+            .catch(error => {
+                console.log(error);
+                setAuthing(false);
+            });
+    }
 
+    // Function to handle sign-in with email and password
+    const signInWithEmail = async () => {
+        setAuthing(true);
+        setError('');
+
+        // Use Firebase to sign in with email and password
+        signInWithEmailAndPassword(auth, email, password)
+            .then(response => {
+                console.log(response.user.uid);
+                navigate('/');
+            })
+            .catch(error => {
+                console.log(error);
+                setError(error.message);
+                setAuthing(false);
+            });
+    }
+  
+
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
       <div className={cn("flex flex-col gap-6 w-full max-w-4xl", className)} {...props}>
@@ -29,7 +74,6 @@ export function LoginForm({
           className="self-start text-white hover:bg-white/10 mb-4 font-noto-serif-jp"
           onClick={handleBackToHome}
         >
-          
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Landing Page
         </Button>
@@ -38,19 +82,29 @@ export function LoginForm({
             <div className="p-6 md:p-8">
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col items-center text-center">
-                  <h1 className=" font-noto-serif-jp text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                  <h1 className="font-noto-serif-jp text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                     Welcome back
                   </h1>
-                  <p className=" font-noto-serif-jp text-balance text-muted-foreground">
+                  <p className="font-noto-serif-jp text-balance text-muted-foreground">
                     Login to your AMCraft account
                   </p>
                 </div>
+                
+                {/* Error message display */}
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+                
                 <div className="grid gap-2">
                   <Label htmlFor="email" className="text-gray-700 font-noto-serif-jp">Email</Label>
                   <Input
                     id="email"
                     type="email"
+                    value={email}
                     placeholder="abc@example.com"
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                     className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
                   />
@@ -68,6 +122,9 @@ export function LoginForm({
                   <Input 
                     id="password" 
                     type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder='Password'
                     required 
                     className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
                   />
@@ -75,8 +132,10 @@ export function LoginForm({
                 <Button 
                   type="submit" 
                   className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 text-white font-medium py-2.5 font-noto-serif-jp"
+                  onClick={signInWithEmail}
+                  disabled={authing}
                 >
-                  Login
+                  {authing ? 'Logging in...' : 'Login'}
                 </Button>
                 <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                   <span className="relative z-10 bg-white px-2 text-muted-foreground font-noto-serif-jp">
@@ -84,24 +143,23 @@ export function LoginForm({
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
-                  
-                    <Button 
-                      variant="outline" 
-                      className="col-span-3 w-full shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    >
-                      <img
-                        src="/attached_assets/google-color-svgrepo-com.svg"
-                        alt="Google"
-                        className="w-5 h-5"
-                      />
-                      <span>Sign In With Google</span>
-                      <span className="sr-only">Login with Google</span>
-                    </Button>
-                  
-                  
+                  <Button 
+                    variant="outline" 
+                    className="col-span-3 w-full shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2"
+                    onClick={signInWithGoogle}
+                    disabled={authing}
+                  >
+                    <img
+                      src="/attached_assets/google-color-svgrepo-com.svg"
+                      alt="Google"
+                      className="w-5 h-5"
+                    />
+                    <span>{authing ? 'Signing in...' : 'Sign In With Google'}</span>
+                    <span className="sr-only">Login with Google</span>
+                  </Button>
                 </div>
                 <div className="text-center text-sm font-noto-serif-jp text-gray-600">
-                  Don&apos;t have an account?{" "}
+                  Don't have an account?{" "}
                   <a href="#" className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" onClick={handleSignUp}>
                     Sign up
                   </a>
@@ -126,4 +184,5 @@ export function LoginForm({
     </div>
   )
 }
-export default LoginForm
+
+export default LoginForm;
