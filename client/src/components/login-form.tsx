@@ -17,8 +17,12 @@ export function LoginForm({
     navigate('/')
   }
 
+  const handleSignUp = () => {
+    navigate('/sign-up')
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
       <div className={cn("flex flex-col gap-6 w-full max-w-4xl", className)} {...props}>
         <Button
           variant="ghost"
@@ -119,7 +123,7 @@ export function LoginForm({
                 </div>
                 <div className="text-center text-sm font-noto-serif-jp text-gray-600">
                   Don&apos;t have an account?{" "}
-                  <a href="#" className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors">
+                  <a href="#" className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" onClick={handleSignUp}>
                     Sign up
                   </a>
                 </div>
