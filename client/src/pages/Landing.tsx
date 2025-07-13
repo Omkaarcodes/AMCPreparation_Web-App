@@ -22,9 +22,11 @@ import {
 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import InteractiveDemo from "../components/ui/InteractiveDemo"
+import { useNavigate } from "react-router-dom"
 
 
 export default function LandingPage() {
+  const navigate = useNavigate()
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   useEffect(() => {
@@ -155,6 +157,15 @@ export default function LandingPage() {
       document.head.removeChild(styleElement);
     };
   }, []);
+
+  const handleSignIn = () => {
+    navigate('/login')
+  }
+
+  const handleGetStarted = () => {
+    navigate('/login')
+  }
+
   
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
@@ -199,7 +210,7 @@ export default function LandingPage() {
             <div className="flex items-center space-x-4">
               
               
-              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">
+              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800" onClick={handleSignIn}>
                 Sign In
               </Button>
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800">

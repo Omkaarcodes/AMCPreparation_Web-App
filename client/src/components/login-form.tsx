@@ -1,16 +1,33 @@
+import { useEffect,useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { cn } from "../../lib/utils"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
+import { ArrowLeft } from "lucide-react"
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const navigate = useNavigate()
+
+  const handleBackToHome = () => {
+    navigate('/')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
       <div className={cn("flex flex-col gap-6 w-full max-w-4xl", className)} {...props}>
+        <Button
+          variant="ghost"
+          className="self-start text-white hover:bg-white/10 mb-4 font-noto-serif-jp"
+          onClick={handleBackToHome}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Landing Page
+        </Button>
         <Card className="overflow-hidden shadow-2xl backdrop-blur-sm bg-white/95 border-white/20">
           <CardContent className="grid p-0 md:grid-cols-2">
             <div className="p-6 md:p-8">
