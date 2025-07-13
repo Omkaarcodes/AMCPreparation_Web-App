@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
 import { cn } from "../../../../lib/utils"
 import { Button } from "../../ui/button"
 import { Card, CardContent } from "../../ui/card"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { ArrowLeft } from "lucide-react"
-import { googleAuthProvider } from "../firebaseConfig";
 import {authentification} from '../firebaseConfig';
 
 const SignUpForm =  ({
@@ -15,7 +14,7 @@ const SignUpForm =  ({
   ...props
 }: React.ComponentProps<"div">) => {
   const navigate = useNavigate();
-  const auth = authentification;
+  const auth = getAuth();
 
   const handleBackToHome = () => {
     navigate('/')
@@ -121,6 +120,7 @@ const SignUpForm =  ({
                   <Input 
                     id="password" 
                     type="password" 
+                    placeholder="Enter your password"
                     required 
                     className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
                     value={password}
@@ -133,7 +133,8 @@ const SignUpForm =  ({
                   </div>
                   <Input 
                     id="confirmPassword" 
-                    type="password" 
+                    type="password"
+                    placeholder="Retype your password" 
                     required 
                     className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
                     value={confirmPassword}

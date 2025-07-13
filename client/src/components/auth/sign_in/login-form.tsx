@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 import {authentification} from '../firebaseConfig';
 import { cn } from "../../../../lib/utils"
 import { Button } from "../../ui/button"
@@ -8,6 +8,7 @@ import { Card, CardContent } from "../../ui/card"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { ArrowLeft } from "lucide-react"
+import { get } from "http";
 
 const LoginForm = ({
   className,
@@ -15,7 +16,7 @@ const LoginForm = ({
 }: React.ComponentProps<"div">) => {
 
   const navigate = useNavigate();
-  const auth = authentification;
+  const auth = getAuth();
 
   // State variables for managing authentication state, email, password, and error messages
   const [authing, setAuthing] = useState(false);
