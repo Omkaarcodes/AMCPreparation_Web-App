@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword } from 'firebase/auth';
 import { cn } from "../../../../lib/utils"
 import { Button } from "../../ui/button"
 import { Card, CardContent } from "../../ui/card"
@@ -8,13 +8,14 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { ArrowLeft } from "lucide-react"
 import { googleAuthProvider } from "../firebaseConfig";
+import {authentification} from '../firebaseConfig';
 
 const SignUpForm =  ({
   className,
   ...props
 }: React.ComponentProps<"div">) => {
   const navigate = useNavigate();
-  const auth = getAuth();
+  const auth = authentification;
 
   const handleBackToHome = () => {
     navigate('/')
@@ -194,4 +195,4 @@ const SignUpForm =  ({
     </div>
   )
 }
-export default SignUpForm;
+export default SignUpForm
