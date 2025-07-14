@@ -9,6 +9,7 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { ArrowLeft } from "lucide-react"
 import {authentification} from '../firebaseConfig';
+import { sendEmailVerification } from "firebase/auth";
 
 const SignUpForm =  ({
   className,
@@ -63,17 +64,25 @@ const SignUpForm =  ({
         setAuthing(true);
         setError('');
 
+       try {
         // Use Firebase to create a new user with email and password
-        createUserWithEmailAndPassword(auth, email, password)
-            .then(response => {
-                console.log(response.user.uid);
-                navigate('/');
-            })
-            .catch(error => {
-                console.log(error);
-                setError(error.message);
-                setAuthing(false);
-            });
+        const response = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(response.user);
+        
+        console.log('User created:', response.user.uid);
+        console.log('Verification email sent to:', response.user.email);
+        await auth.signOut();
+        
+        setError(''); // Clear any previous errors
+        alert('Account created successfully! Please check your email for verification.');
+        navigate('/'); //TODO: create verification page.
+        
+    } catch (error: any) {
+        console.log(error);
+        setError(error.message);
+        setAuthing(false);
+    }
+
     };
 
   // Enhanced animation variants for input fields
