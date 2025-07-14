@@ -8,7 +8,7 @@ import './globals.css'
 import AuthRoute from '../client/src/components/auth/AuthRoute'
 import { firebaseConfig } from '../client/src/components/auth/firebaseConfig'
 import { initializeApp } from 'firebase/app'
-import VerificationSuccess from '../client/src/components/auth/YouLoggedIn'
+import Dashboard from '../client/src/components/auth/YouLoggedIn'
 
 initializeApp(firebaseConfig);
 
@@ -20,7 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/login" element={<LoginForm />} />
         <Route path="/sign-up" element={<SignUpForm />} />
         <Route path='*' element={<Navigate to='/'/>} />
-        <Route path="/dashboard" element={<AuthRoute><VerificationSuccess /></AuthRoute>} />
+        <Route path="/dashboard" element={<AuthRoute><Dashboard /></AuthRoute>} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,

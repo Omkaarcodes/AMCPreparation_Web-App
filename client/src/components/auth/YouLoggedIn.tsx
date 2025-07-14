@@ -5,12 +5,121 @@ import {
     signOut,
     User
 } from 'firebase/auth';
-
 import { useNavigate } from "react-router-dom";
+import { 
+    Breadcrumb, 
+    BreadcrumbItem, 
+    BreadcrumbLink, 
+    BreadcrumbList, 
+    BreadcrumbPage, 
+    BreadcrumbSeparator 
+} from "../ui/breadcrumb";
+import { Separator } from "../ui/separator";
+import { 
+    Card, 
+    CardContent, 
+    CardDescription, 
+    CardHeader, 
+    CardTitle 
+} from "../ui/card";
+import { 
+    Activity, 
+    CreditCard, 
+    DollarSign, 
+    Users, 
+    TrendingUp, 
+    Calendar,
+    Bell,
+    Search,
+    ArrowUpRight,
+    ArrowDownRight,
+    BarChart3,
+    Sparkles,
+    Home,
+    Settings,
+    FileText,
+    Star,
+    History,
+    Briefcase,
+    MoreHorizontal,
+    ChevronRight,
+    ChevronDown
+} from "lucide-react";
 
-export default function VerificationSuccess() {
+const sidebarItems = [
+    {
+        label: "Platform",
+        items: [
+            { 
+                name: "Playground", 
+                icon: Home, 
+                isActive: true, 
+                hasSubmenu: true,
+                submenu: [
+                    { name: "Code Editor", isActive: false },
+                    { name: "Live Preview", isActive: false },
+                    { name: "Templates", isActive: false }
+                ]
+            },
+            { name: "History", icon: History, isActive: false },
+            { name: "Starred", icon: Star, isActive: false },
+            { name: "Settings", icon: Settings, isActive: false },
+        ]
+    },
+    {
+        label: "Development",
+        items: [
+            { 
+                name: "Models", 
+                icon: BarChart3, 
+                isActive: false, 
+                hasSubmenu: true,
+                submenu: [
+                    { name: "GPT Models", isActive: false },
+                    { name: "Custom Models", isActive: false },
+                    { name: "Fine-tuning", isActive: false }
+                ]
+            },
+            { 
+                name: "Documentation", 
+                icon: FileText, 
+                isActive: false, 
+                hasSubmenu: true,
+                submenu: [
+                    { name: "API Reference", isActive: false },
+                    { name: "Guides", isActive: false },
+                    { name: "Examples", isActive: false }
+                ]
+            },
+            { 
+                name: "Settings", 
+                icon: Settings, 
+                isActive: false, 
+                hasSubmenu: true,
+                submenu: [
+                    { name: "API Keys", isActive: false },
+                    { name: "Billing", isActive: false },
+                    { name: "Team", isActive: false }
+                ]
+            },
+        ]
+    },
+    {
+        label: "Projects",
+        items: [
+            { name: "Design Engineering", icon: Briefcase, isActive: false },
+            { name: "Sales & Marketing", icon: TrendingUp, isActive: false },
+            { name: "Travel", icon: Calendar, isActive: false },
+            { name: "More", icon: MoreHorizontal, isActive: false },
+        ]
+    }
+];
+
+export default function Dashboard() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
+    const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({});
     const auth = getAuth();
     const navigate = useNavigate();
 
@@ -26,6 +135,26 @@ export default function VerificationSuccess() {
 
         return () => unsubscribe();
     }, [auth, navigate]);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+   const globalStyles = `
+    * {
+      font-family: 'Noto Serif JP', serif !important;
+    }
+  `;
+
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = globalStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
     const getDisplayName = () => {
         if (user?.displayName) {
@@ -46,40 +175,433 @@ export default function VerificationSuccess() {
         }
     };
 
+    const toggleSubmenu = (menuKey: string) => {
+        setExpandedMenus(prev => ({
+            ...prev,
+            [menuKey]: !prev[menuKey]
+        }));
+    };
+
+    const stats = [
+        {
+            title: "Total Revenue",
+            value: "$45,231.89",
+            change: "+20.1%",
+            changeText: "from last month",
+            icon: DollarSign,
+            color: "text-emerald-400",
+            bgColor: "bg-emerald-500/10",
+            borderColor: "border-emerald-500/20",
+            trend: "up"
+        },
+        {
+            title: "Active Users",
+            value: "2,350",
+            change: "+180.1%",
+            changeText: "from last month",
+            icon: Users,
+            color: "text-blue-400",
+            bgColor: "bg-blue-500/10",
+            borderColor: "border-blue-500/20",
+            trend: "up"
+        },
+        {
+            title: "Sales",
+            value: "12,234",
+            change: "+19%",
+            changeText: "from last month",
+            icon: CreditCard,
+            color: "text-purple-400",
+            bgColor: "bg-purple-500/10",
+            borderColor: "border-purple-500/20",
+            trend: "up"
+        },
+        {
+            title: "Active Now",
+            value: "573",
+            change: "+201",
+            changeText: "since last hour",
+            icon: Activity,
+            color: "text-orange-400",
+            bgColor: "bg-orange-500/10",
+            borderColor: "border-orange-500/20",
+            trend: "up"
+        }
+    ];
+
+    const recentActivities = [
+        {
+            action: "New user registered",
+            user: "John Doe",
+            time: "2 minutes ago",
+            type: "user",
+            color: "bg-blue-500"
+        },
+        {
+            action: "Payment processed",
+            user: "Jane Smith",
+            time: "5 minutes ago",
+            type: "payment",
+            color: "bg-emerald-500"
+        },
+        {
+            action: "Project completed",
+            user: "Mike Johnson",
+            time: "10 minutes ago",
+            type: "project",
+            color: "bg-purple-500"
+        },
+        {
+            action: "Support ticket created",
+            user: "Sarah Wilson",
+            time: "15 minutes ago",
+            type: "support",
+            color: "bg-orange-500"
+        }
+    ];
+
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-green-50">
-                <div className="bg-white p-8 rounded-2xl shadow-lg text-center border border-green-300">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="text-gray-600 mt-4">Loading...</p>
+            <div className="flex items-center justify-center min-h-screen bg-slate-900">
+                <div className="flex flex-col items-center space-y-4">
+                    <div className="relative">
+                        <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-700"></div>
+                        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent absolute top-0 left-0"></div>
+                    </div>
+                    <p className="text-slate-300 font-medium animate-pulse bg-slate-800/80 backdrop-blur-sm px-4 py-2 rounded-lg">
+                        Loading dashboard...
+                    </p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-green-50">
-            <div className="bg-white p-8 rounded-2xl shadow-lg text-center border border-green-300 max-w-md">
-                <h1 className="text-2xl font-bold text-green-600 mb-4">
-                    ✅ Welcome, {getDisplayName()}!
-                </h1>
-                <p className="text-gray-600 mb-4">
-                    You have successfully logged in! 🎉
-                </p>
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-6">
-                    <p className="text-sm text-green-800">
-                        Email: {user?.email || 'N/A'}
-                    </p>
-                    <p className="text-sm text-green-800">
-                        Verified: {user?.emailVerified ? 'Yes' : 'No'}
-                    </p>
+        <div className="flex h-screen bg-slate-900">
+            {/* Fixed Sidebar */}
+            <div className="w-64 bg-slate-950 border-r border-slate-800/50 flex flex-col">
+                {/* Logo */}
+                <div className="p-6 border-b border-slate-800/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">A</span>
+                        </div>
+                        <div>
+                            <h2 className="text-white font-semibold">AMCraft</h2>
+                            <p className="text-slate-400 text-xs">AMC 10/12 Preparation</p>
+                        </div>
+                    </div>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
-                >
-                    Logout
-                </button>
+
+                {/* Navigation */}
+                <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+                    {sidebarItems.map((section, sectionIndex) => (
+                        <div key={sectionIndex} className={`space-y-2 ${mounted ? 'animate-in slide-in-from-left-2 fade-in' : ''}`}
+                             style={{ animationDelay: `${sectionIndex * 100}ms` }}>
+                            <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider px-2">
+                                {section.label}
+                            </h3>
+                            <div className="space-y-1">
+                                {section.items.map((item, itemIndex) => {
+                                    const menuKey = `${sectionIndex}-${itemIndex}`;
+                                    const isExpanded = expandedMenus[menuKey];
+                                    
+                                    return (
+                                        <div key={itemIndex}>
+                                            {/* Main menu item */}
+                                            <div 
+                                                className={`group flex items-center justify-between px-2 py-2 rounded-lg transition-all duration-200 hover:bg-slate-800/50 cursor-pointer ${
+                                                    item.isActive ? 'bg-blue-500/10 border-l-2 border-blue-500' : ''
+                                                }`}
+                                                onClick={() => item.hasSubmenu && toggleSubmenu(menuKey)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <item.icon className={`w-4 h-4 ${item.isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                                                    <span className={`text-sm font-medium ${item.isActive ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}`}>
+                                                        {item.name}
+                                                    </span>
+                                                </div>
+                                                {item.hasSubmenu && (
+                                                    <div className="transition-transform duration-200">
+                                                        {isExpanded ? (
+                                                            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-300" />
+                                                        ) : (
+                                                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-300" />
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Submenu */}
+                                            {item.hasSubmenu && isExpanded && item.submenu && (
+                                                <div className="ml-6 mt-1 space-y-1 animate-in slide-in-from-top-2 fade-in duration-200">
+                                                    {item.submenu.map((subItem, subIndex) => (
+                                                        <div 
+                                                            key={subIndex}
+                                                            className={`group flex items-center px-2 py-1.5 rounded-md transition-all duration-200 hover:bg-slate-800/30 cursor-pointer ${
+                                                                subItem.isActive ? 'bg-blue-500/5 text-blue-400' : ''
+                                                            }`}
+                                                        >
+                                                            <div className="w-1.5 h-1.5 bg-slate-600 rounded-full mr-3 group-hover:bg-slate-400 transition-colors"></div>
+                                                            <span className={`text-xs font-medium ${
+                                                                subItem.isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-300'
+                                                            }`}>
+                                                                {subItem.name}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </nav>
+
+                {/* User Profile */}
+                <div className="p-4 border-t border-slate-800/50">
+                    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">
+                                {getDisplayName().charAt(0).toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-300 truncate">{getDisplayName()}</p>
+                            <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Header */}
+                <header className="bg-slate-900/95 backdrop-blur-sm border-b border-slate-800/50 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <Breadcrumb>
+                            <BreadcrumbList>
+                                <BreadcrumbItem>
+                                    <BreadcrumbLink href="#" className="text-slate-400 hover:text-white transition-colors">
+                                        Dashboard
+                                    </BreadcrumbLink>
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator className="text-slate-600" />
+                                <BreadcrumbItem>
+                                    <BreadcrumbPage className="text-white font-medium">Overview</BreadcrumbPage>
+                                </BreadcrumbItem>
+                            </BreadcrumbList>
+                        </Breadcrumb>
+                        
+                        <div className="flex items-center space-x-4">
+                            <div className="relative group">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4 group-focus-within:text-blue-400 transition-colors" />
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    className="pl-10 pr-4 py-2 w-64 border border-slate-700 rounded-lg bg-slate-800/50 text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                                />
+                            </div>
+                            <button className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors duration-200 relative">
+                                <Bell className="h-5 w-5 text-slate-400 hover:text-white" />
+                                <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full animate-pulse"></span>
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Main Content Area */}
+                <main className="flex-1 overflow-auto p-6 space-y-6">
+                    {/* Welcome Section */}
+                    <div className={`bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 ${mounted ? 'animate-in slide-in-from-top-4 fade-in duration-700' : ''}`}>
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-2">
+                                <h1 className="text-2xl font-bold text-white">
+                                    Welcome back, {getDisplayName()}!
+                                </h1>
+                                <p className="text-slate-400">
+                                    Here's what's happening with your account today.
+                                </p>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                    <Calendar className="h-5 w-5 text-blue-400" />
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-medium text-white">
+                                        {new Date().toLocaleDateString('en-US', { 
+                                            weekday: 'long'
+                                        })}
+                                    </p>
+                                    <p className="text-xs text-slate-400">
+                                        {new Date().toLocaleDateString('en-US', { 
+                                            month: 'long', 
+                                            day: 'numeric',
+                                            year: 'numeric'
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                        {stats.map((stat, index) => (
+                            <Card key={index} className={`group cursor-pointer bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 hover:border-slate-600/50 transition-all duration-300 hover:scale-105 ${mounted ? 'animate-in slide-in-from-bottom-4 fade-in' : ''}`} 
+                                  style={{ animationDelay: `${index * 150}ms` }}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                                    <CardTitle className="text-sm font-medium text-slate-400 group-hover:text-slate-300 transition-colors">
+                                        {stat.title}
+                                    </CardTitle>
+                                    <div className={`p-2 rounded-lg ${stat.bgColor} border ${stat.borderColor} group-hover:scale-110 transition-transform duration-200`}>
+                                        <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    <div className="text-2xl font-bold text-white group-hover:text-slate-100 transition-colors">
+                                        {stat.value}
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <div className="flex items-center space-x-1 text-emerald-400">
+                                            <ArrowUpRight className="h-3 w-3" />
+                                            <span className="text-xs font-medium">{stat.change}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500">{stat.changeText}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
+                    {/* Content Grid */}
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+                        {/* Chart Area */}
+                        <Card className={`col-span-4 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-left-4 fade-in duration-700' : ''}`}>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-3 text-white">
+                                    <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                                        <TrendingUp className="h-5 w-5 text-white" />
+                                    </div>
+                                    Revenue Overview
+                                </CardTitle>
+                                <CardDescription className="text-slate-400">
+                                    Your revenue performance over the last 6 months
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-[300px] flex items-center justify-center bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-700 hover:border-slate-600 transition-colors duration-300">
+                                    <div className="text-center space-y-4">
+                                        <div className="relative">
+                                            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
+                                            <BarChart3 className="h-16 w-16 text-slate-500 mx-auto relative" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-slate-300 font-medium">Chart visualization would go here</p>
+                                            <p className="text-sm text-slate-500">
+                                                Integrate with your preferred charting library
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Recent Activity */}
+                        <Card className={`col-span-3 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-right-4 fade-in duration-700' : ''}`}>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-3 text-white">
+                                    <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg">
+                                        <Activity className="h-5 w-5 text-white" />
+                                    </div>
+                                    Recent Activity
+                                </CardTitle>
+                                <CardDescription className="text-slate-400">
+                                    Latest activities in your account
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-3">
+                                    {recentActivities.map((activity, index) => (
+                                        <div key={index} className={`group flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-700/30 transition-all duration-200 ${mounted ? 'animate-in slide-in-from-right-2 fade-in' : ''}`}
+                                             style={{ animationDelay: `${(index + 5) * 100}ms` }}>
+                                            <div className={`w-3 h-3 ${activity.color} rounded-full mt-2 flex-shrink-0 group-hover:scale-110 transition-transform duration-200`}></div>
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <p className="text-sm font-medium text-white group-hover:text-slate-100 transition-colors">
+                                                    {activity.action}
+                                                </p>
+                                                <p className="text-xs text-slate-500 group-hover:text-slate-400 transition-colors">
+                                                    {activity.user} • {activity.time}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* User Info Card */}
+                    <Card className={`bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-bottom-4 fade-in duration-700' : ''}`}>
+                        <CardHeader className="pb-4">
+                            <CardTitle className="flex items-center gap-3 text-white">
+                                <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg">
+                                    <Sparkles className="h-5 w-5 text-white" />
+                                </div>
+                                Account Information
+                            </CardTitle>
+                            <CardDescription className="text-slate-400">
+                                Your current account details and status
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-400">Email</label>
+                                    <p className="text-sm text-white font-medium px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                                        {user?.email || 'N/A'}
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-400">Email Verified</label>
+                                    <div className="px-3 py-2">
+                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                            user?.emailVerified 
+                                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                        }`}>
+                                            {user?.emailVerified ? '✓ Verified' : '✗ Not Verified'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-400">Display Name</label>
+                                    <p className="text-sm text-white font-medium px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                                        {user?.displayName || 'Not set'}
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-slate-400">Last Sign In</label>
+                                    <p className="text-sm text-white font-medium px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                                        {user?.metadata?.lastSignInTime 
+                                            ? new Date(user.metadata.lastSignInTime).toLocaleString() 
+                                            : 'N/A'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-6 pt-6 border-t border-slate-700">
+                                <button
+                                    onClick={handleLogout}
+                                    className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 transform hover:scale-105 font-medium"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
             </div>
         </div>
     );
