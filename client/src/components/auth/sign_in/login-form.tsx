@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { 
@@ -38,11 +38,30 @@ const LoginForm = ({
   const [error, setError] = useState('');
   const [needsVerification, setNeedsVerification] = useState(false);
   const [unverifiedUser, setUnverifiedUser] = useState<User | null>(null);
+  const [cooldownTime, setCooldownTime] = useState(0);
+  const [isCooldownActive, setIsCooldownActive] = useState(false);
 
   // Animation state for inputs
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  
+  useEffect(() => {
+      let interval: NodeJS.Timeout;
+      if (isCooldownActive && cooldownTime > 0) {
+        interval = setInterval(() => {
+          setCooldownTime((prev) => {
+            if (prev <= 1) {
+              setIsCooldownActive(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+      return () => clearInterval(interval);
+    }, [isCooldownActive, cooldownTime]);
+    
   const signInWithGoogle = async () => {
     setAuthing(true);
     setError('');
@@ -50,8 +69,8 @@ const LoginForm = ({
     try {
       const response = await signInWithPopup(auth, new GoogleAuthProvider());
       console.log('Google user signed in:', response.user.uid);
-      // Google users are automatically verified
-      navigate('/dashboard'); // Replace with your main app route
+      navigate('/dashboard');
+
     } catch (error: any) {
       console.log('Google sign-in error:', error);
       setError(error.message || 'Failed to sign in with Google');
@@ -124,7 +143,8 @@ const LoginForm = ({
       console.log('Resend verification error:', error);
       setError('Failed to send verification email. Please try again.');
     }
-    
+    setCooldownTime(60);
+    setIsCooldownActive(true);
     setAuthing(false);
   };
 
@@ -372,11 +392,28 @@ const LoginForm = ({
                     whileTap="tap"
                   >
                     <Button 
-                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-noto-serif-jp"
+                      className={`w-full font-noto-serif-jp transition-all duration-200 ${
+                        isCooldownActive 
+                          ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                      } text-white`}
                       onClick={resendVerificationEmail}
-                      disabled={authing}
+                      disabled={authing || isCooldownActive}
                     >
-                      {authing ? 'Sending...' : 'Resend Verification Email'}
+                      {authing ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
+                          />
+                          Sending...
+                        </>
+                      ) : isCooldownActive ? (
+                        `Resend in ${cooldownTime}s`
+                      ) : (
+                        'Resend Verification Email'
+                      )}
                     </Button>
                   </motion.div>
                   

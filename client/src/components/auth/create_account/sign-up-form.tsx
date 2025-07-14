@@ -423,7 +423,8 @@ const resendVerificationEmail = async () => {
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-800 font-noto-serif-jp">
                     Click the verification link in your email to activate your account. 
-                    You won't be able to sign in until your email is verified.
+                    You won't be able to sign in until your email is verified, so PLEASE verify your email 
+                    before proceeding to the login page.
                   </p>
                 </div>
                 
