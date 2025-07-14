@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { motion } from "framer-motion"
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 import {authentification} from '../firebaseConfig';
 import { cn } from "../../../../lib/utils"
@@ -65,9 +66,32 @@ const LoginForm = ({
                 setAuthing(false);
             });
     }
-  
 
-  
+  // Animation variants for specific elements
+  const inputVariants = {
+    focus: {
+      scale: 1.02,
+      borderColor: "#a855f7",
+      boxShadow: "0 0 0 3px rgba(168, 85, 247, 0.1)",
+      transition: { duration: 0.2 }
+    },
+    blur: {
+      scale: 1,
+      transition: { duration: 0.2 }
+    }
+  };
+
+  const buttonVariants = {
+    hover: {
+      scale: 1.02,
+      transition: { duration: 0.2 }
+    },
+    tap: {
+      scale: 0.98,
+      transition: { duration: 0.1 }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
       <div className={cn("flex flex-col gap-6 w-full max-w-4xl", className)} {...props}>
@@ -79,6 +103,7 @@ const LoginForm = ({
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Landing Page
         </Button>
+
         <Card className="overflow-hidden shadow-2xl backdrop-blur-sm bg-white/95 border-white/20">
           <CardContent className="grid p-0 md:grid-cols-2">
             <div className="p-6 md:p-8">
@@ -101,73 +126,123 @@ const LoginForm = ({
                 
                 <div className="grid gap-2">
                   <Label htmlFor="email" className="text-gray-700 font-noto-serif-jp">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    placeholder="abc@example.com"
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
-                  />
+                  <motion.div
+                    variants={inputVariants}
+                    whileFocus="focus"
+                    initial="blur"
+                    animate="blur"
+                  >
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      placeholder="abc@example.com"
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
+                    />
+                  </motion.div>
                 </div>
+
                 <div className="grid gap-2">
                   <div className="flex items-center">
                     <Label htmlFor="password" className="text-gray-700 font-noto-serif-jp">Password</Label>
-                    <a
+                    <motion.a
                       href="#"
                       className="ml-auto text-sm underline-offset-2 hover:underline text-purple-600 hover:text-purple-700 transition-colors font-noto-serif-jp"
+                      whileHover={{ scale: 1.05, color: "#7c3aed" }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
                     >
                       Forgot your password?
-                    </a>
+                    </motion.a>
                   </div>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder='Password'
-                    required 
-                    className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
-                  />
+                  <motion.div
+                    variants={inputVariants}
+                    whileFocus="focus"
+                    initial="blur"
+                    animate="blur"
+                  >
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder='Password'
+                      required 
+                      className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
+                    />
+                  </motion.div>
                 </div>
-                <Button 
-                  type="submit" 
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 text-white font-medium py-2.5 font-noto-serif-jp"
-                  onClick={signInWithEmail}
-                  disabled={authing}
+
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                 >
-                  {authing ? 'Logging in...' : 'Login'}
-                </Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 text-white font-medium py-2.5 font-noto-serif-jp"
+                    onClick={signInWithEmail}
+                    disabled={authing}
+                  >
+                    {authing ? (
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
+                      />
+                    ) : null}
+                    {authing ? 'Logging in...' : 'Login'}
+                  </Button>
+                </motion.div>
+
                 <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
                   <span className="relative z-10 bg-white px-2 text-muted-foreground font-noto-serif-jp">
                     Or continue with:
                   </span>
                 </div>
+
                 <div className="grid grid-cols-3 gap-4">
-                  <Button 
-                    variant="outline" 
-                    className="col-span-3 w-full shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    onClick={signInWithGoogle}
-                    disabled={authing}
+                  <motion.div
+                    variants={buttonVariants}
+                    whileHover="hover"
+                    whileTap="tap"
+                    className="col-span-3"
                   >
-                    <img
-                      src="/attached_assets/google-color-svgrepo-com.svg"
-                      alt="Google"
-                      className="w-5 h-5"
-                    />
-                    <span>{authing ? 'Signing in...' : 'Sign In With Google'}</span>
-                    <span className="sr-only">Login with Google</span>
-                  </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2"
+                      onClick={signInWithGoogle}
+                      disabled={authing}
+                    >
+                      <img
+                        src="/attached_assets/google-color-svgrepo-com.svg"
+                        alt="Google"
+                        className="w-5 h-5"
+                      />
+                      <span>{authing ? 'Signing in...' : 'Sign In With Google'}</span>
+                      <span className="sr-only">Login with Google</span>
+                    </Button>
+                  </motion.div>
                 </div>
+
                 <div className="text-center text-sm font-noto-serif-jp text-gray-600">
                   Don't have an account?{" "}
-                  <a href="#" className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" onClick={handleSignUp}>
+                  <motion.a 
+                    href="#" 
+                    className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" 
+                    onClick={handleSignUp}
+                    whileHover={{ scale: 1.05, color: "#7c3aed" }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
                     Sign up
-                  </a>
+                  </motion.a>
                 </div>
               </div>
             </div>
+
             <div className="relative hidden bg-gradient-to-br from-purple-400/20 to-blue-400/20 md:block">
               <img
                 src="attached_assets/download.jpeg"
@@ -178,6 +253,7 @@ const LoginForm = ({
             </div>
           </CardContent>
         </Card>
+
         <div className="text-balance text-center text-xs text-white/70 [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-white [&_a]:text-white/90 transition-colors">
           By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
           and <a href="#">Privacy Policy</a>.
