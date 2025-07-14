@@ -73,9 +73,8 @@ const SignUpForm =  ({
         console.log('Verification email sent to:', response.user.email);
         await auth.signOut();
         
-        setError(''); // Clear any previous errors
+        setError(''); 
         alert('Account created successfully! Please check your email for verification.');
-        navigate('/'); //TODO: create verification page.
         
     } catch (error: any) {
         console.log(error);
