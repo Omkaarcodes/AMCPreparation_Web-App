@@ -28,7 +28,7 @@ const LoginForm = ({
   }
 
   const handleSignUp = () => {
-    navigate('/signup')
+    navigate('/sign-up')
   }
 
   // State variables
