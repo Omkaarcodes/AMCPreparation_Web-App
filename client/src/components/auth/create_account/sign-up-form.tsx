@@ -7,7 +7,8 @@ import {
   signInWithPopup, 
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  onAuthStateChanged
+  onAuthStateChanged,
+  signInWithEmailAndPassword
 } from 'firebase/auth';
 import { cn } from "../../../../lib/utils"
 import { Button } from "../../ui/button"
@@ -39,6 +40,8 @@ const SignUpForm = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
+  const [cooldownTime, setCooldownTime] = useState(0);
+  const [isCooldownActive, setIsCooldownActive] = useState(false);
   const [userEmail, setUserEmail] = useState('');
 
   // Animation state for inputs
@@ -46,17 +49,32 @@ const SignUpForm = ({
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
 
-  // Monitor auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && user.emailVerified) {
-        // User is signed in and email is verified, redirect to main app
-        navigate('/dashboard'); // Replace with your main app route
+        navigate('/dashboard'); 
       }
     });
 
     return () => unsubscribe();
   }, [auth, navigate]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isCooldownActive && cooldownTime > 0) {
+      interval = setInterval(() => {
+        setCooldownTime((prev) => {
+          if (prev <= 1) {
+            setIsCooldownActive(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isCooldownActive, cooldownTime]);
+
 
   const signUpWithGoogle = async () => {
     setAuthing(true);
@@ -65,8 +83,7 @@ const SignUpForm = ({
     try {
       const response = await signInWithPopup(auth, new GoogleAuthProvider());
       console.log('Google user:', response.user.uid);
-      // Google users are automatically verified
-      navigate('/dashboard'); // Replace with your main app route
+      navigate('/dashboard'); 
     } catch (error: any) {
       console.log('Google sign-up error:', error);
       setError(error.message || 'Failed to sign up with Google');
@@ -74,9 +91,8 @@ const SignUpForm = ({
     }
   };
 
-  // Function to handle sign-up with email and password
+  
   const signUpWithEmail = async () => {
-    // Check if passwords match
     if (password !== confirmPassword) {
       setError('Oops! The passwords do not match.');
       return;
@@ -92,22 +108,22 @@ const SignUpForm = ({
     setError('');
 
     try {
-      // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Send email verification
       await sendEmailVerification(user);
       
-      // Sign out the user immediately after creation
       await auth.signOut();
-      
+           
       console.log('User created:', user.uid);
       console.log('Verification email sent to:', user.email);
       
-      // Set state to show verification message
       setVerificationSent(true);
       setUserEmail(user.email || email);
+
+      setCooldownTime(60);
+      setIsCooldownActive(true);
+      
       setAuthing(false);
       
     } catch (error: any) {
@@ -130,36 +146,35 @@ const SignUpForm = ({
     }
   };
 
-  // Function to resend verification email
-  const resendVerificationEmail = async () => {
-    setAuthing(true);
-    setError('');
+const resendVerificationEmail = async () => {
+  setAuthing(true);
+  setError('');
 
-    try {
-      // Create user again to get the user object (they were signed out)
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Send verification email
-      await sendEmailVerification(user);
-      
-      // Sign out again
-      await auth.signOut();
-      
-      setError('');
-      alert('Verification email sent again! Please check your inbox.');
-      
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        // User already exists, this is expected
-        setError('Account already exists. Please check your email for the verification link or try signing in.');
-      } else {
-        setError('Failed to resend verification email. Please try again.');
-      }
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    if (user.emailVerified) {
+      setError('Your email is already verified! 🎉');
+      return;
     }
-    
+
+    await sendEmailVerification(user);
+    alert('Verification email sent again! Please check your inbox 📬');
+
+    setCooldownTime(60);
+    setIsCooldownActive(true);
+
+    await auth.signOut();
+  } catch (err: any) {
+    setError(err.message || 'Something went wrong — please try again.');
+    await auth.signOut();
+  } finally {
+    // Always turn off the loading spinner
     setAuthing(false);
-  };
+  }
+};
+
 
   // Enhanced animation variants for input fields
   const inputContainerVariants = {
@@ -430,11 +445,28 @@ const SignUpForm = ({
                     whileTap="tap"
                   >
                     <Button 
-                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-noto-serif-jp"
+                      className={`w-full font-noto-serif-jp transition-all duration-200 ${
+                        isCooldownActive 
+                          ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
+                      } text-white`}
                       onClick={resendVerificationEmail}
-                      disabled={authing}
+                      disabled={authing || isCooldownActive}
                     >
-                      {authing ? 'Sending...' : 'Resend Verification Email'}
+                      {authing ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
+                          />
+                          Sending...
+                        </>
+                      ) : isCooldownActive ? (
+                        `Resend in ${cooldownTime}s`
+                      ) : (
+                        'Resend Verification Email'
+                      )}
                     </Button>
                   </motion.div>
                   
