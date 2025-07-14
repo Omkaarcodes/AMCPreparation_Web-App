@@ -2,6 +2,7 @@
 import { Button } from "../components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/infocard"
 import { Badge } from "../components/ui/badge"
+import { motion } from "framer-motion"
 import {
   Brain,
   Target,
@@ -554,14 +555,19 @@ export default function LandingPage() {
               </div>
 
               <div className="text-center space-y-4">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-8 py-3 text-lg"
-                  onClick={() => window.open("https://forms.gle/WtrSrTUfU3boLEhg6", "_blank")}
-                >
-                  <Lightbulb className="mr-2 h-5 w-5" />
-                  Submit Your Ideas
-                </Button>
+                <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Button
+                      size="lg"
+                      className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-8 py-3 text-lg"
+                      onClick={() => window.open("https://forms.gle/WtrSrTUfU3boLEhg6", "_blank")}
+                    >
+                      <Lightbulb className="mr-2 h-5 w-5" />
+                      Submit Your Ideas
+                    </Button>
+                </motion.div>
                 <p className="text-sm text-gray-400">
                   Join our community of contributors helping to build the future of math competition preparation
                 </p>
