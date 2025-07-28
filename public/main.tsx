@@ -9,6 +9,7 @@ import AuthRoute from '../client/src/components/auth/AuthRoute'
 import { firebaseConfig } from '../client/src/components/auth/firebaseConfig'
 import { initializeApp } from 'firebase/app'
 import Dashboard from '../client/src/components/auth/YouLoggedIn'
+import ForgotPasswordForm from "../client/src/components/auth/sign_in/forgotPasswordform"
 
 initializeApp(firebaseConfig);
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/sign-up" element={<SignUpForm />} />
         <Route path='*' element={<Navigate to='/'/>} />
         <Route path="/dashboard" element={<AuthRoute><Dashboard /></AuthRoute>} />
+        <Route path="/forgot-password" element={<ForgotPasswordForm />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,

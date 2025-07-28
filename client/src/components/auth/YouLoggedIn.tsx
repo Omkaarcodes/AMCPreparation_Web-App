@@ -43,74 +43,109 @@ import {
     Briefcase,
     MoreHorizontal,
     ChevronRight,
-    ChevronDown
+    ChevronDown,
+    BookOpen,
+    Brain,
+    Clock,
+    BookMarked,
+    Target,
+    RotateCcw,
+    Flame,
+    Trophy,
+    Swords,
+    Database,
+    List,
+    Bookmark
 } from "lucide-react";
 
 const sidebarItems = [
     {
-        label: "Platform",
+        label: "Practice",
         items: [
             { 
-                name: "Playground", 
+                name: "Dashboard", 
                 icon: Home, 
                 isActive: true, 
+                hasSubmenu: false
+            },
+            { 
+                name: "Topic Practice", 
+                icon: BookOpen, 
+                isActive: false, 
                 hasSubmenu: true,
                 submenu: [
-                    { name: "Code Editor", isActive: false },
-                    { name: "Live Preview", isActive: false },
-                    { name: "Templates", isActive: false }
+                    { name: "Algebra", isActive: false },
+                    { name: "Geometry", isActive: false },
+                    { name: "Number Theory", isActive: false },
+                    { name: "Combinatorics", isActive: false },
+                    { name: "Probability", isActive: false }
                 ]
             },
-            { name: "History", icon: History, isActive: false },
-            { name: "Starred", icon: Star, isActive: false },
-            { name: "Settings", icon: Settings, isActive: false },
+            { 
+                name: "Adaptive Quiz", 
+                icon: Brain, 
+                isActive: false, 
+                hasSubmenu: true,
+                submenu: [
+                    { name: "Quick Quiz", isActive: false },
+                    { name: "Adaptive Mode", isActive: false },
+                    { name: "Difficulty Ladder", isActive: false }
+                ]
+            },
+            { name: "Mock Exams", icon: Clock, isActive: false },
+            { name: "Error Journal", icon: BookMarked, isActive: false },
         ]
     },
     {
-        label: "Development",
+        label: "Progress",
         items: [
             { 
-                name: "Models", 
+                name: "Analytics", 
                 icon: BarChart3, 
                 isActive: false, 
                 hasSubmenu: true,
                 submenu: [
-                    { name: "GPT Models", isActive: false },
-                    { name: "Custom Models", isActive: false },
-                    { name: "Fine-tuning", isActive: false }
+                    { name: "Performance", isActive: false },
+                    { name: "Speed Analysis", isActive: false },
+                    { name: "Topic Mastery", isActive: false }
                 ]
             },
             { 
-                name: "Documentation", 
-                icon: FileText, 
+                name: "Mastery Map", 
+                icon: Target, 
                 isActive: false, 
-                hasSubmenu: true,
-                submenu: [
-                    { name: "API Reference", isActive: false },
-                    { name: "Guides", isActive: false },
-                    { name: "Examples", isActive: false }
-                ]
+                hasSubmenu: false
             },
             { 
-                name: "Settings", 
-                icon: Settings, 
+                name: "Spaced Review", 
+                icon: RotateCcw, 
                 isActive: false, 
                 hasSubmenu: true,
                 submenu: [
-                    { name: "API Keys", isActive: false },
-                    { name: "Billing", isActive: false },
-                    { name: "Team", isActive: false }
+                    { name: "Due Today", isActive: false },
+                    { name: "Schedule", isActive: false },
+                    { name: "Overdue", isActive: false }
                 ]
             },
+            { name: "Study Streaks", icon: Flame, isActive: false },
         ]
     },
     {
-        label: "Projects",
+        label: "Competition",
         items: [
-            { name: "Design Engineering", icon: Briefcase, isActive: false },
-            { name: "Sales & Marketing", icon: TrendingUp, isActive: false },
-            { name: "Travel", icon: Calendar, isActive: false },
-            { name: "More", icon: MoreHorizontal, isActive: false },
+
+            { name: "Weekly Challenges", icon: Calendar, isActive: false },
+            
+            { name: "Badges & XP", icon: Star, isActive: false },
+        ]
+    },
+    {
+        label: "Library",
+        items: [
+            { name: "Problem Bank", icon: Database, isActive: false },
+            { name: "Custom Playlists", icon: List, isActive: false },
+            { name: "Saved Problems", icon: Bookmark, isActive: false },
+            { name: "Settings", icon: Settings, isActive: false },
         ]
     }
 ];
@@ -184,78 +219,78 @@ export default function Dashboard() {
 
     const stats = [
         {
-            title: "Total Revenue",
-            value: "$45,231.89",
-            change: "+20.1%",
-            changeText: "from last month",
-            icon: DollarSign,
+            title: "Problems Solved",
+            value: "1,247",
+            change: "+23",
+            changeText: "this week",
+            icon: Target,
             color: "text-emerald-400",
             bgColor: "bg-emerald-500/10",
             borderColor: "border-emerald-500/20",
             trend: "up"
         },
         {
-            title: "Active Users",
-            value: "2,350",
-            change: "+180.1%",
-            changeText: "from last month",
-            icon: Users,
+            title: "Current Streak",
+            value: "15 days",
+            change: "+2",
+            changeText: "from last week",
+            icon: Flame,
+            color: "text-orange-400",
+            bgColor: "bg-orange-500/10",
+            borderColor: "border-orange-500/20",
+            trend: "up"
+        },
+        {
+            title: "Accuracy Rate",
+            value: "84.2%",
+            change: "+5.1%",
+            changeText: "improvement",
+            icon: BarChart3,
             color: "text-blue-400",
             bgColor: "bg-blue-500/10",
             borderColor: "border-blue-500/20",
             trend: "up"
         },
         {
-            title: "Sales",
-            value: "12,234",
-            change: "+19%",
-            changeText: "from last month",
-            icon: CreditCard,
+            title: "XP Points",
+            value: "8,573",
+            change: "+127",
+            changeText: "today",
+            icon: Star,
             color: "text-purple-400",
             bgColor: "bg-purple-500/10",
             borderColor: "border-purple-500/20",
-            trend: "up"
-        },
-        {
-            title: "Active Now",
-            value: "573",
-            change: "+201",
-            changeText: "since last hour",
-            icon: Activity,
-            color: "text-orange-400",
-            bgColor: "bg-orange-500/10",
-            borderColor: "border-orange-500/20",
             trend: "up"
         }
     ];
 
     const recentActivities = [
         {
-            action: "New user registered",
-            user: "John Doe",
+            action: "Completed Algebra Quiz",
+            user: "Score: 9/10",
             time: "2 minutes ago",
-            type: "user",
-            color: "bg-blue-500"
-        },
-        {
-            action: "Payment processed",
-            user: "Jane Smith",
-            time: "5 minutes ago",
-            type: "payment",
+            type: "quiz",
             color: "bg-emerald-500"
         },
         {
-            action: "Project completed",
-            user: "Mike Johnson",
-            time: "10 minutes ago",
-            type: "project",
+            action: "Earned 'Problem Solver' badge",
+            user: "50 problems milestone",
+            time: "1 hour ago",
+            type: "achievement",
             color: "bg-purple-500"
         },
         {
-            action: "Support ticket created",
-            user: "Sarah Wilson",
-            time: "15 minutes ago",
-            type: "support",
+            action: "Geometry topic mastery",
+            user: "85% accuracy reached",
+            time: "3 hours ago",
+            type: "mastery",
+            color: "bg-blue-500"
+        },
+        {
+            action: "Weekly challenge completed",
+            user: "Ranked #12 globally",
+            time: "Yesterday",
+            type: "challenge",
             color: "bg-orange-500"
         }
     ];
@@ -422,7 +457,7 @@ export default function Dashboard() {
                                     Welcome back, {getDisplayName()}!
                                 </h1>
                                 <p className="text-slate-400">
-                                    Here's what's happening with your account today.
+                                    Here's the latest in your AMC 10/12 preparation!
                                 </p>
                             </div>
                             <div className="flex items-center space-x-3">
@@ -483,12 +518,12 @@ export default function Dashboard() {
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center gap-3 text-white">
                                     <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-                                        <TrendingUp className="h-5 w-5 text-white" />
+                                        <BarChart3 className="h-5 w-5 text-white" />
                                     </div>
-                                    Revenue Overview
+                                    Performance Analytics
                                 </CardTitle>
                                 <CardDescription className="text-slate-400">
-                                    Your revenue performance over the last 6 months
+                                    Your problem-solving performance over the last 30 days
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -499,9 +534,9 @@ export default function Dashboard() {
                                             <BarChart3 className="h-16 w-16 text-slate-500 mx-auto relative" />
                                         </div>
                                         <div className="space-y-2">
-                                            <p className="text-slate-300 font-medium">Chart visualization would go here</p>
+                                            <p className="text-slate-300 font-medium">Progress visualization would go here</p>
                                             <p className="text-sm text-slate-500">
-                                                Integrate with your preferred charting library
+                                                Topic mastery, accuracy trends, and speed improvements
                                             </p>
                                         </div>
                                     </div>

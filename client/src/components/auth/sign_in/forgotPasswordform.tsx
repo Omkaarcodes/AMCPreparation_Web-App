@@ -1,27 +1,28 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { 
   getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithEmailAndPassword,
-  sendEmailVerification,
-  User
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword
 } from 'firebase/auth';
 import { cn } from "../../../../lib/utils"
 import { Button } from "../../ui/button"
 import { Card, CardContent } from "../../ui/card"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
-import { ArrowLeft, Mail, AlertCircle } from "lucide-react"
+import { ArrowLeft, Mail, CheckCircle, AlertCircle, User } from "lucide-react"
 
-const LoginForm = ({
+const ForgotPasswordForm = ({
   className,
   ...props
 }: React.ComponentProps<"div">) => {
   const navigate = useNavigate();
   const auth = getAuth();
+
+  const handleBackToLogin = () => {
+    navigate('/login')
+  }
 
   const handleBackToHome = () => {
     navigate('/')
@@ -31,131 +32,76 @@ const LoginForm = ({
     navigate('/sign-up')
   }
 
-  const handleForgotPassword = () => {
-    navigate('/forgot-password')
-  }
-
   // State variables
-  const [authing, setAuthing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [unverifiedUser, setUnverifiedUser] = useState<User | null>(null);
-  const [cooldownTime, setCooldownTime] = useState(0);
-  const [isCooldownActive, setIsCooldownActive] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [userNotFound, setUserNotFound] = useState(false);
 
   // Animation state for inputs
   const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
-  
-  useEffect(() => {
-      let interval: NodeJS.Timeout;
-      if (isCooldownActive && cooldownTime > 0) {
-        interval = setInterval(() => {
-          setCooldownTime((prev) => {
-            if (prev <= 1) {
-              setIsCooldownActive(false);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      }
-      return () => clearInterval(interval);
-    }, [isCooldownActive, cooldownTime]);
-    
-  const signInWithGoogle = async () => {
-    setAuthing(true);
-    setError('');
-
-    try {
-      const response = await signInWithPopup(auth, new GoogleAuthProvider());
-      console.log('Google user signed in:', response.user.uid);
-      navigate('/dashboard');
-
-    } catch (error: any) {
-      console.log('Google sign-in error:', error);
-      setError(error.message || 'Failed to sign in with Google');
-      setAuthing(false);
-    }
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   };
 
-  const signInWithEmail = async () => {
-    if (!email || !password) {
-      setError('Please enter both email and password.');
+  const handlePasswordReset = async () => {
+    if (!email) {
+      setError('Please enter your email address.');
       return;
     }
 
-    setAuthing(true);
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
     setError('');
+    setUserNotFound(false);
 
     try {
-      // Sign in with email and password
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Check if email is verified
-      if (!user.emailVerified) {
-        // Sign out the user immediately
-        await auth.signOut();
-        
-        // Set state to show verification required message
-        setNeedsVerification(true);
-        setUnverifiedUser(user);
-        setAuthing(false);
-        return;
+      try {
+        await signInWithEmailAndPassword(auth, email, 'dummy-password-check-123456');
+      } catch (checkError: any) {
+        // If user doesn't exist, Firebase will return 'auth/user-not-found'
+        if (checkError.code === 'auth/user-not-found') {
+          setUserNotFound(true);
+          setLoading(false);
+          return;
+        }
+       
       }
+
+      // User exists, now send password reset email
+      await sendPasswordResetEmail(auth, email);
+      setSuccess(true);
+      setEmailSent(true);
+      console.log('Password reset email sent to:', email);
       
-      console.log('User signed in:', user.uid);
-      navigate('/dashboard'); // Replace with your main app route
-      
-    } catch (error: any) {
-      console.log('Sign-in error:', error);
-      let errorMessage = 'Failed to sign in. Please check your credentials.';
+    }  catch (error: any) {
+      console.log('Password reset error:', error);
+      let errorMessage = 'Failed to send password reset email. Please try again.';
       
       // Handle specific Firebase errors
       if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email. Please check your email or create a new account.';
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
+        setUserNotFound(true);
+        setLoading(false);
+        errorMessage = 'No account found with this email address.';
+        return;
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Please enter a valid email address.';
-      } else if (error.code === 'auth/user-disabled') {
-        errorMessage = 'This account has been disabled. Please contact support.';
       } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed attempts. Please try again later.';
+        errorMessage = 'Too many requests. Please try again later.';
       }
       
       setError(errorMessage);
-      setAuthing(false);
     }
-  };
-
-  const resendVerificationEmail = async () => {
-    if (!unverifiedUser) return;
     
-    setAuthing(true);
-    setError('');
-
-    try {
-      await sendEmailVerification(unverifiedUser);
-      setError('');
-      alert('Verification email sent! Please check your inbox.');
-    } catch (error: any) {
-      console.log('Resend verification error:', error);
-      setError('Failed to send verification email. Please try again.');
-    }
-    setCooldownTime(60);
-    setIsCooldownActive(true);
-    setAuthing(false);
-  };
-
-  const handleBackToLogin = () => {
-    setNeedsVerification(false);
-    setUnverifiedUser(null);
-    setError('');
+    setLoading(false);
   };
 
   // Enhanced animation variants for input fields
@@ -310,14 +256,9 @@ const LoginForm = ({
   };
 
   // Helper function to get input state
-  const getInputState = (fieldName: string, isFocused: boolean, value: string) => {
+  const getInputState = (isFocused: boolean, value: string) => {
     if (error) {
-      if (fieldName === 'email' && error.includes('email')) {
-        return 'error';
-      }
-      if (fieldName === 'password' && error.includes('password')) {
-        return 'error';
-      }
+      return 'error';
     }
     
     if (isFocused) {
@@ -327,8 +268,8 @@ const LoginForm = ({
     return 'blur';
   };
 
-  // If user needs email verification, show verification message
-  if (needsVerification) {
+  // Success state - email sent
+  if (emailSent && success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
         <div className={cn("flex flex-col gap-6 w-full max-w-md", className)} {...props}>
@@ -354,40 +295,101 @@ const LoginForm = ({
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
                 >
-                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <AlertCircle className="w-8 h-8 text-yellow-600" />
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
                   </div>
                 </motion.div>
                 
                 <div>
                   <h1 className="font-noto-serif-jp text-2xl font-bold text-gray-800 mb-2">
-                    Email Verification Required
+                    Password Reset Email Sent!
                   </h1>
                   <p className="font-noto-serif-jp text-gray-600 mb-4">
-                    Please verify your email address to sign in:
+                    We've sent a password reset link to:
                   </p>
                   <p className="font-noto-serif-jp text-purple-600 font-medium">
-                    {unverifiedUser?.email}
+                    {email}
+                  </p>
+                </div>
+                
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 font-noto-serif-jp">
+                    Please check your email and click the link to reset your password. 
+                    The link will expire in 1 hour for security reasons.
+                  </p>
+                </div>
+                
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
+                  className="w-full"
+                >
+                  <Button 
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-noto-serif-jp"
+                    onClick={handleBackToLogin}
+                  >
+                    Back to Sign In
+                  </Button>
+                </motion.div>
+              </motion.div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // User not found state
+  if (userNotFound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
+        <div className={cn("flex flex-col gap-6 w-full max-w-md", className)} {...props}>
+          <Button
+            variant="ghost"
+            className="self-start text-white hover:bg-white/10 mb-4 font-noto-serif-jp"
+            onClick={handleBackToHome}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Landing Page
+          </Button>
+
+          <Card className="overflow-hidden shadow-2xl backdrop-blur-sm bg-white/95 border-white/20">
+            <CardContent className="p-8">
+              <motion.div 
+                className="flex flex-col items-center gap-6 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
+                >
+                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                    <User className="w-8 h-8 text-orange-600" />
+                  </div>
+                </motion.div>
+                
+                <div>
+                  <h1 className="font-noto-serif-jp text-2xl font-bold text-gray-800 mb-2">
+                    Account Not Found
+                  </h1>
+                  <p className="font-noto-serif-jp text-gray-600 mb-4">
+                    No account found with the email:
+                  </p>
+                  <p className="font-noto-serif-jp text-orange-600 font-medium">
+                    {email}
                   </p>
                 </div>
                 
                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                   <p className="text-sm text-orange-800 font-noto-serif-jp">
-                    We've sent a verification link to your email. Click the link to verify your account, 
-                    then try signing in again.
+                    This email address is not registered with AMCraft. 
+                    Please check your email or create a new account.
                   </p>
                 </div>
-                
-                {error && (
-                  <motion.div 
-                    className="p-3 bg-red-50 border border-red-200 rounded-md w-full"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <p className="text-sm text-red-600">{error}</p>
-                  </motion.div>
-                )}
                 
                 <div className="flex flex-col gap-3 w-full">
                   <motion.div
@@ -396,28 +398,10 @@ const LoginForm = ({
                     whileTap="tap"
                   >
                     <Button 
-                      className={`w-full font-noto-serif-jp transition-all duration-200 ${
-                        isCooldownActive 
-                          ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed' 
-                          : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
-                      } text-white`}
-                      onClick={resendVerificationEmail}
-                      disabled={authing || isCooldownActive}
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-noto-serif-jp"
+                      onClick={handleSignUp}
                     >
-                      {authing ? (
-                        <>
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
-                          />
-                          Sending...
-                        </>
-                      ) : isCooldownActive ? (
-                        `Resend in ${cooldownTime}s`
-                      ) : (
-                        'Resend Verification Email'
-                      )}
+                      Create New Account
                     </Button>
                   </motion.div>
                   
@@ -429,9 +413,13 @@ const LoginForm = ({
                     <Button 
                       variant="outline"
                       className="w-full font-noto-serif-jp"
-                      onClick={handleBackToLogin}
+                      onClick={() => {
+                        setUserNotFound(false);
+                        setEmail('');
+                        setError('');
+                      }}
                     >
-                      Back to Sign In
+                      Try Different Email
                     </Button>
                   </motion.div>
                 </div>
@@ -443,6 +431,7 @@ const LoginForm = ({
     );
   }
 
+  // Main forgot password form
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 flex items-center justify-center p-4">
       <div className={cn("flex flex-col gap-6 w-full max-w-4xl", className)} {...props}>
@@ -468,11 +457,14 @@ const LoginForm = ({
                   className="flex flex-col items-center text-center"
                   variants={itemVariants}
                 >
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                    <Mail className="w-6 h-6 text-purple-600" />
+                  </div>
                   <h1 className="font-noto-serif-jp text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                    Welcome Back!
+                    Forgot Password?
                   </h1>
                   <p className="font-noto-serif-jp text-balance text-muted-foreground">
-                    Sign in to your AMCraft account
+                    Enter your email address and we'll send you a link to reset your password
                   </p>
                 </motion.div>
                 
@@ -497,20 +489,20 @@ const LoginForm = ({
                   <motion.div
                     variants={labelVariants}
                     animate={
-                      error && error.includes('email') ? 'error' :
+                      error ? 'error' :
                       emailFocused ? "focus" : "blur"
                     }
                     initial="initial"
                   >
                     <Label htmlFor="email" className="text-gray-700 font-noto-serif-jp">
-                      Email
+                      Email Address
                     </Label>
                   </motion.div>
                   
                   <motion.div
                     variants={inputContainerVariants}
                     animate={
-                      error && error.includes('email') ? "error" : 
+                      error ? "error" : 
                       emailFocused ? "focus" : "blur"
                     }
                     initial="initial"
@@ -518,87 +510,20 @@ const LoginForm = ({
                   >
                     <motion.div
                       variants={inputVariants}
-                      animate={getInputState('email', emailFocused, email)}
+                      animate={getInputState(emailFocused, email)}
                       initial="initial"
                     >
                       <Input
                         id="email"
                         type="email"
-                        placeholder="abc@example.com"
+                        placeholder="Enter your email address"
                         required
                         className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         onFocus={() => setEmailFocused(true)}
                         onBlur={() => setEmailFocused(false)}
-                        onKeyDown={(e) => e.key === 'Enter' && signInWithEmail()}
-                      />
-                    </motion.div>
-                  </motion.div>
-                </motion.div>
-
-                {/* Password Input Field */}
-                <motion.div 
-                  className="grid gap-2"
-                  variants={itemVariants}
-                >
-                  <div className="flex items-center justify-between">
-                    <motion.div
-                      variants={labelVariants}
-                      animate={
-                        error && error.includes('password') ? 'error' :
-                        passwordFocused ? "focus" : "blur"
-                      }
-                      initial="initial"
-                    >
-                      <Label htmlFor="password" className="text-gray-700 font-noto-serif-jp">
-                        Password
-                      </Label>
-                    </motion.div>
-                    <motion.a 
-                      href="#" 
-                      className="text-sm text-purple-600 hover:text-purple-700 transition-colors font-noto-serif-jp"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleForgotPassword();
-                      }}
-                      whileHover={{ 
-                        scale: 1.05, 
-                        color: "#7c3aed",
-                        y: -1
-                      }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      Forgot password?
-                    </motion.a>
-                  </div>
-                  
-                  <motion.div
-                    variants={inputContainerVariants}
-                    animate={
-                      error && error.includes('password') ? "error" : 
-                      passwordFocused ? "focus" : "blur"
-                    }
-                    initial="initial"
-                    style={{ perspective: "1000px" }}
-                  >
-                    <motion.div
-                      variants={inputVariants}
-                      animate={getInputState('password', passwordFocused, password)}
-                      initial="initial"
-                    >
-                      <Input 
-                        id="password" 
-                        type="password" 
-                        placeholder="Enter your password"
-                        required 
-                        className="shadow-md border-gray-200 focus:border-purple-400 focus:ring-purple-400/20 focus:ring-4 transition-all duration-200"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onFocus={() => setPasswordFocused(true)}
-                        onBlur={() => setPasswordFocused(false)}
-                        onKeyDown={(e) => e.key === 'Enter' && signInWithEmail()}
+                        onKeyDown={(e) => e.key === 'Enter' && handlePasswordReset()}
                       />
                     </motion.div>
                   </motion.div>
@@ -612,54 +537,42 @@ const LoginForm = ({
                   <Button 
                     type="submit" 
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 text-white font-medium py-2.5 font-noto-serif-jp"
-                    onClick={signInWithEmail}
-                    disabled={authing}
+                    onClick={handlePasswordReset}
+                    disabled={loading}
                   >
-                    {authing ? (
+                    {loading ? (
                       <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                         className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
                       />
                     ) : null}
-                    {authing ? 'Signing In...' : 'Sign In'}
+                    {loading ? 'Sending Reset Link...' : 'Send Reset Link'}
                   </Button>
                 </motion.div>
 
                 <motion.div 
-                  className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border"
+                  className="text-center text-sm font-noto-serif-jp text-gray-600"
                   variants={itemVariants}
                 >
-                  <span className="relative z-10 bg-white px-2 text-muted-foreground font-noto-serif-jp">
-                    Or Sign In With:
-                  </span>
-                </motion.div>
-
-                <motion.div 
-                  className="grid grid-cols-3 gap-4"
-                  variants={itemVariants}
-                >
-                  <motion.div
-                    variants={buttonVariants}
-                    whileHover="hover"
-                    whileTap="tap"
-                    className="col-span-3"
+                  Remember your password?{" "}
+                  <motion.a 
+                    href="#" 
+                    className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleBackToLogin();
+                    }}
+                    whileHover={{ 
+                      scale: 1.05, 
+                      color: "#7c3aed",
+                      y: -1
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    <Button 
-                      variant="outline" 
-                      className="w-full shadow-md hover:shadow-lg transform hover:scale-[1.02] transition-all duration-200 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2"
-                      onClick={signInWithGoogle}
-                      disabled={authing}
-                    >
-                      <img
-                        src="/attached_assets/google-color-svgrepo-com.svg"
-                        alt="Google"
-                        className="w-5 h-5"
-                      />
-                      <span>{authing ? 'Signing In...' : 'Sign In With Google'}</span>
-                      <span className="sr-only">Login with Google</span>
-                    </Button>
-                  </motion.div>
+                    Back to Sign In
+                  </motion.a>
                 </motion.div>
 
                 <motion.div 
@@ -670,7 +583,10 @@ const LoginForm = ({
                   <motion.a 
                     href="#" 
                     className="underline underline-offset-4 text-purple-600 hover:text-purple-700 transition-colors" 
-                    onClick={handleSignUp}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSignUp();
+                    }}
                     whileHover={{ 
                       scale: 1.05, 
                       color: "#7c3aed",
@@ -698,7 +614,7 @@ const LoginForm = ({
         </Card>
 
         <div className="text-balance text-center text-xs text-white/70 [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-white [&_a]:text-white/90 transition-colors">
-          By signing in, you agree to our <a href="#">Terms of Service</a>{" "}
+          By using our service, you agree to our <a href="#">Terms of Service</a>{" "}
           and <a href="#">Privacy Policy</a>.
         </div>
       </div>
@@ -706,4 +622,4 @@ const LoginForm = ({
   )
 }
 
-export default LoginForm
+export default ForgotPasswordForm
