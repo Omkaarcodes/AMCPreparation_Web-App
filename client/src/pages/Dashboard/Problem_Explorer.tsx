@@ -6,6 +6,9 @@ import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { supabase } from '../supabase-client';
 
+import 'katex/dist/katex.min.css';
+import { InlineMath, BlockMath } from 'react-katex';
+
 interface Problem {
     unique_problem_id: string;
     problem: string;
@@ -54,6 +57,70 @@ interface SessionStats {
     topicBreakdown: Record<string, { correct: number; total: number }>;
 }
 
+const MathRenderer: React.FC<{ content: string; className?: string }> = ({ content, className = "" }) => {
+    const renderMathContent = (text: string) => {
+        if (!text) return null;
+        const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]*?\$)/g;
+        
+        const parts = text.split(mathRegex);
+        
+        return parts.map((part, index) => {
+            // Handle different LaTeX delimiters
+            if (part.startsWith('$$') && part.endsWith('$$')) {
+                // Block math with $$...$$
+                const latex = part.slice(2, -2).trim();
+                try {
+                    return <BlockMath key={index} math={latex} />;
+                } catch (error) {
+                    console.error('LaTeX parsing error ($$):', error, 'LaTeX:', latex);
+                    return <span key={index} className="text-red-400 bg-red-900/20 px-2 py-1 rounded">LaTeX Error: {part}</span>;
+                }
+            } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
+                // Block math with \[...\]
+                const latex = part.slice(2, -2).trim();
+                try {
+                    return <BlockMath key={index} math={latex} />;
+                } catch (error) {
+                    console.error('LaTeX parsing error (\\[\\]):', error, 'LaTeX:', latex);
+                    return <span key={index} className="text-red-400 bg-red-900/20 px-2 py-1 rounded">LaTeX Error: {part}</span>;
+                }
+            } else if (part.startsWith('\\(') && part.endsWith('\\)')) {
+                // Inline math with \(...\)
+                const latex = part.slice(2, -2).trim();
+                try {
+                    return <InlineMath key={index} math={latex} />;
+                } catch (error) {
+                    console.error('LaTeX parsing error (\\(\\)):', error, 'LaTeX:', latex);
+                    return <span key={index} className="text-red-400 bg-red-900/20 px-1 rounded">LaTeX Error: {part}</span>;
+                }
+            } else if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
+                // Inline math with $...$
+                const latex = part.slice(1, -1).trim();
+                try {
+                    return <InlineMath key={index} math={latex} />;
+                } catch (error) {
+                    console.error('LaTeX parsing error ($):', error, 'LaTeX:', latex);
+                    return <span key={index} className="text-red-400 bg-red-900/20 px-1 rounded">LaTeX Error: {part}</span>;
+                }
+            } else {
+                // Regular text - preserve whitespace and line breaks
+                return part.split('\n').map((line, lineIndex) => (
+                    <span key={`${index}-${lineIndex}`}>
+                        {line}
+                        {lineIndex < part.split('\n').length - 1 && <br />}
+                    </span>
+                ));
+            }
+        });
+    };
+
+    return (
+        <div className={`math-content ${className}`}>
+            {renderMathContent(content)}
+        </div>
+    );
+};
+
 export default function ProblemsSolvedWidget({ 
     isOpen, 
     onClose, 
@@ -84,7 +151,6 @@ export default function ProblemsSolvedWidget({
     const [isActive, setIsActive] = useState(false);
     const [showReview, setShowReview] = useState(false);
     
-    // Track state for each problem
     const [problemStates, setProblemStates] = useState<Record<string, ProblemState>>({});
 
     // Timer effect
@@ -273,9 +339,17 @@ export default function ProblemsSolvedWidget({
         setCurrentProblemIndex(0);
     };
 
-    // Check if answer is multiple choice (A, B, C, D, E)
+    // Enhanced answer comparison function that handles LaTeX
+    const normalizeAnswer = (answer: string): string => {
+        return answer
+            .replace(/\$+/g, '') // Remove LaTeX delimiters
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .trim()
+            .toUpperCase();
+    };
+
     const isMultipleChoice = (answer: string): boolean => {
-        const trimmedAnswer = answer.trim().toUpperCase();
+        const trimmedAnswer = normalizeAnswer(answer);
         return ['A', 'B', 'C', 'D', 'E'].includes(trimmedAnswer);
     };
 
@@ -315,16 +389,14 @@ export default function ProblemsSolvedWidget({
         setIsActive(false);
     };
 
-    // Handle answer submission
     const handleSubmitAnswer = () => {
         const problem = getCurrentProblem();
         const state = getCurrentProblemState();
         if (!problem || !state.userAnswer.trim()) return;
 
         const timeSpent = Math.floor((Date.now() - problemStartTime) / 1000);
-        const isCorrect = state.userAnswer.toUpperCase() === problem.answer.trim().toUpperCase();
+        const isCorrect = normalizeAnswer(state.userAnswer) === normalizeAnswer(problem.answer);
         
-        // Calculate XP
         let xpGained = 0;
         if (isCorrect) {
             const baseDifficulty = parseInt(problem.difficulty) || 5;
@@ -354,7 +426,7 @@ export default function ProblemsSolvedWidget({
         if (!problem) return;
 
         const timeSpent = Math.floor((Date.now() - problemStartTime) / 1000);
-        const isCorrect = option === problem.answer.trim().toUpperCase();
+        const isCorrect = option === normalizeAnswer(problem.answer);
         
         // Calculate XP
         let xpGained = 0;
@@ -805,7 +877,9 @@ export default function ProblemsSolvedWidget({
                             {/* Current Problem */}
                             <Card className="bg-gray-800 border-gray-700">
                                 <CardHeader>
-                                    <CardTitle className="text-white text-xl">{getCurrentProblem()?.problem}</CardTitle>
+                                    <CardTitle className="text-white text-xl">
+                                        <MathRenderer content={getCurrentProblem()?.problem || ''} />
+                                    </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {/* Answer Options */}
@@ -814,6 +888,7 @@ export default function ProblemsSolvedWidget({
                                             {['A', 'B', 'C', 'D', 'E'].map((option, index) => {
                                                 const state = getCurrentProblemState();
                                                 const problem = getCurrentProblem();
+                                                const correctAnswer = normalizeAnswer(problem?.answer || '');
                                                 
                                                 return (
                                                     <button
@@ -822,9 +897,9 @@ export default function ProblemsSolvedWidget({
                                                         disabled={state.isSubmitted}
                                                         className={`p-4 text-left rounded-lg border transition-all duration-200 ${
                                                             state.isSubmitted
-                                                                ? option === problem?.answer.trim().toUpperCase()
+                                                                ? option === correctAnswer
                                                                     ? "bg-green-600/20 border-green-600 text-green-400"
-                                                                    : option === state.userAnswer && option !== problem?.answer.trim().toUpperCase()
+                                                                    : option === state.userAnswer && option !== correctAnswer
                                                                         ? "bg-red-600/20 border-red-600 text-red-400"
                                                                         : "bg-gray-700 border-gray-600 text-gray-400"
                                                                 : state.userAnswer === option
@@ -835,10 +910,10 @@ export default function ProblemsSolvedWidget({
                                                         <div className="flex items-center space-x-3">
                                                             <span className="font-semibold">({option})</span>
                                                             <span>Option {option}</span>
-                                                            {state.isSubmitted && option === problem?.answer.trim().toUpperCase() && (
+                                                            {state.isSubmitted && option === correctAnswer && (
                                                                 <Check className="h-5 w-5 text-green-400 ml-auto" />
                                                             )}
-                                                            {state.isSubmitted && option === state.userAnswer && option !== problem?.answer.trim().toUpperCase() && (
+                                                            {state.isSubmitted && option === state.userAnswer && option !== correctAnswer && (
                                                                 <XCircle className="h-5 w-5 text-red-400 ml-auto" />
                                                             )}
                                                         </div>
@@ -855,7 +930,7 @@ export default function ProblemsSolvedWidget({
                                                     onChange={(e) => handleAnswerChange(e.target.value)}
                                                     disabled={getCurrentProblemState().isSubmitted}
                                                     className="flex-1 px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                                                    placeholder="Enter your answer..."
+                                                    placeholder="Enter your answer (you can use LaTeX like $x^2$ or $\frac{1}{2}$)..."
                                                     onKeyPress={(e) => {
                                                         if (e.key === 'Enter') {
                                                             handleSubmitAnswer();
@@ -872,6 +947,14 @@ export default function ProblemsSolvedWidget({
                                                     </Button>
                                                 )}
                                             </div>
+                                            
+                                            {/* LaTeX Preview for user input */}
+                                            {getCurrentProblemState().userAnswer && !getCurrentProblemState().isSubmitted && (
+                                                <div className="bg-gray-900/50 border border-gray-600 rounded-lg p-3">
+                                                    <div className="text-xs text-gray-400 mb-1">Your answer preview:</div>
+                                                    <MathRenderer content={getCurrentProblemState().userAnswer} className="text-gray-300" />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -909,10 +992,10 @@ export default function ProblemsSolvedWidget({
                                             <CardContent className="p-4">
                                                 <div className="flex items-start space-x-2">
                                                     <Lightbulb className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0" />
-                                                    <div>
-                                                        <div className="text-yellow-400 font-semibold mb-1">Hint:</div>
+                                                    <div className="flex-1">
+                                                        <div className="text-yellow-400 font-semibold mb-2">Hint:</div>
                                                         <div className="text-gray-300">
-                                                            {getCurrentProblem()?.solution?.substring(0, 150)}...
+                                                            <MathRenderer content={getCurrentProblem()?.solution?.substring(0, 200) + '...' || ''} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -934,7 +1017,7 @@ export default function ProblemsSolvedWidget({
                                                                 <XCircle className="h-5 w-5 text-red-400 mt-0.5" />
                                                             )}
                                                         </div>
-                                                        <div>
+                                                        <div className="flex-1">
                                                             <div className={`font-semibold mb-2 ${
                                                                 getCurrentProblemState().isCorrect ? "text-green-400" : "text-red-400"
                                                             }`}>
@@ -943,12 +1026,18 @@ export default function ProblemsSolvedWidget({
                                                                     <span className="text-yellow-400 ml-2">+{getCurrentProblemState().xpGained} XP earned!</span>
                                                                 )}
                                                             </div>
-                                                            <div className="text-gray-300 mb-2">
-                                                                <strong>Correct Answer:</strong> {getCurrentProblem()?.answer}
+                                                            <div className="text-gray-300 mb-3">
+                                                                <strong>Correct Answer:</strong>
+                                                                <div className="mt-1">
+                                                                    <MathRenderer content={getCurrentProblem()?.answer || ''} />
+                                                                </div>
                                                             </div>
                                                             {getCurrentProblem()?.solution && (
                                                                 <div className="text-gray-300">
-                                                                    <strong>Solution:</strong> {getCurrentProblem()?.solution}
+                                                                    <strong>Solution:</strong>
+                                                                    <div className="mt-1">
+                                                                        <MathRenderer content={getCurrentProblem()?.solution || ''} />
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -980,5 +1069,4 @@ export default function ProblemsSolvedWidget({
             </Card>
         </div>
     );
-
 }
