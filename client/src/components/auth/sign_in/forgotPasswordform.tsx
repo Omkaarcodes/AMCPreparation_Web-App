@@ -64,44 +64,22 @@ const ForgotPasswordForm = ({
     setUserNotFound(false);
 
     try {
-      try {
-        await signInWithEmailAndPassword(auth, email, 'dummy-password-check-123456');
-      } catch (checkError: any) {
-        // If user doesn't exist, Firebase will return 'auth/user-not-found'
-        if (checkError.code === 'auth/user-not-found') {
-          setUserNotFound(true);
-          setLoading(false);
-          return;
-        }
-       
-      }
-
-      // User exists, now send password reset email
-      await sendPasswordResetEmail(auth, email);
-      setSuccess(true);
-      setEmailSent(true);
-      console.log('Password reset email sent to:', email);
-      
-    }  catch (error: any) {
-      console.log('Password reset error:', error);
+        await sendPasswordResetEmail(auth, email);
+        setSuccess(true);
+        setEmailSent(true);
+        setError('');
+        setUserNotFound(false);
+} catch (error) {
       let errorMessage = 'Failed to send password reset email. Please try again.';
-      
-      // Handle specific Firebase errors
-      if (error.code === 'auth/user-not-found') {
-        setUserNotFound(true);
-        setLoading(false);
-        errorMessage = 'No account found with this email address.';
-        return;
-      } else if (error.code === 'auth/invalid-email') {
+      if (error === 'auth/invalid-email') {
         errorMessage = 'Please enter a valid email address.';
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (error === 'auth/too-many-requests') {
         errorMessage = 'Too many requests. Please try again later.';
       }
-      
       setError(errorMessage);
-    }
-    
-    setLoading(false);
+      setSuccess(false);
+}
+      setLoading(false);
   };
 
   // Enhanced animation variants for input fields
@@ -314,7 +292,7 @@ const ForgotPasswordForm = ({
                 
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-800 font-noto-serif-jp">
-                    Please check your email and click the link to reset your password. 
+                    Please check your email linked to your AMCraft account and click the provided link to reset your password. 
                     The link will expire in 1 hour for security reasons.
                   </p>
                 </div>

@@ -8,7 +8,7 @@ import './globals.css'
 import AuthRoute from '../client/src/components/auth/AuthRoute'
 import { firebaseConfig } from '../client/src/components/auth/firebaseConfig'
 import { initializeApp } from 'firebase/app'
-import Dashboard from '../client/src/components/auth/YouLoggedIn'
+import Dashboard from '../client/src/pages/Dashboard/YouLoggedIn'
 import ForgotPasswordForm from "../client/src/components/auth/sign_in/forgotPasswordform"
 
 initializeApp(firebaseConfig);
