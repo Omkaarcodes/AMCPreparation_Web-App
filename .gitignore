@@ -72,3 +72,9 @@ node_modules/
 
 # Firebase auth config (custom)
 firebaseAuth.ts
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

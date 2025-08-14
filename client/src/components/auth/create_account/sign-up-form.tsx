@@ -765,7 +765,7 @@ const resendVerificationEmail = async () => {
 
             <div className="relative hidden md:block h-full w-full">
               <img
-              src="attached_assets/download.jpeg"
+              src="/attached_assets/download.jpeg"
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale rounded-r-lg"
               style={{ maxHeight: "100%", maxWidth: "100%" }}

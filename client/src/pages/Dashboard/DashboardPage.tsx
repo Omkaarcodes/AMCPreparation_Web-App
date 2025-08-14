@@ -3,6 +3,7 @@ import {
     getAuth, 
     onAuthStateChanged,
     signOut,
+    updateProfile,
     User
 } from 'firebase/auth';
 import { useNavigate } from "react-router-dom";
@@ -14,7 +15,6 @@ import {
     BreadcrumbPage, 
     BreadcrumbSeparator 
 } from "../../components/ui/breadcrumb";
-import { Separator } from "../../components/ui/separator";
 import { 
     Card, 
     CardContent, 
@@ -56,10 +56,14 @@ import {
     Database,
     List,
     Bookmark,
-    X
+    X,
+    Edit3,
+    Save,
+    Loader2
 } from "lucide-react";
 
 import ProblemsSolvedWidget from './Problem_Explorer'
+import path from "path";
 
 // Add Problem interface
 interface Problem {
@@ -77,7 +81,33 @@ interface Problem {
     difficulty_1: string;
 }
 
-const sidebarItems = [
+interface UserProfile {
+    id: string;
+    created_at: string;
+    email?: string;
+    display_name?: string;
+    last_seen?: string;
+}
+
+export default function Dashboard() {
+    const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false);
+    const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({});
+    const [showProblemExplorer, setShowProblemExplorer] = useState(false);
+    const [practiceProblems, setPracticeProblems] = useState<Problem[]>([]);
+    const [showPracticeSession, setShowPracticeSession] = useState(false);
+    
+    // New state for display name editing
+    const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
+    const [newDisplayName, setNewDisplayName] = useState('');
+    const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
+    const [displayNameError, setDisplayNameError] = useState('');
+    
+    const auth = getAuth();
+    const navigate = useNavigate();
+
+    const sidebarItems = [
     {
         label: "Practice",
         items: [
@@ -85,13 +115,18 @@ const sidebarItems = [
                 name: "Dashboard", 
                 icon: Home, 
                 isActive: true, 
-                hasSubmenu: false
+                hasSubmenu: false,
+                hasUrl: false,
+                url: ""
             },
             { 
                 name: "Topic Practice", 
                 icon: BookOpen, 
                 isActive: false, 
                 hasSubmenu: true,
+                hasUrl: false,
+                url: "",
+
                 submenu: [
                     { name: "Algebra", isActive: false },
                     { name: "Geometry", isActive: false },
@@ -105,14 +140,16 @@ const sidebarItems = [
                 icon: Brain, 
                 isActive: false, 
                 hasSubmenu: true,
+                hasUrl: false,
+                url: "",
                 submenu: [
                     { name: "Quick Quiz", isActive: false },
                     { name: "Adaptive Mode", isActive: false },
                     { name: "Difficulty Ladder", isActive: false }
                 ]
             },
-            { name: "Mock Exams", icon: Clock, isActive: false },
-            { name: "Error Journal", icon: BookMarked, isActive: false },
+            { name: "Mock Exams", icon: Clock, isActive: false, hasUrl: true, url: "/mock-exams" },
+            { name: "Error Journal", icon: BookMarked, isActive: false, hasUrl: false, url: "" },
         ]
     },
     {
@@ -123,6 +160,8 @@ const sidebarItems = [
                 icon: BarChart3, 
                 isActive: false, 
                 hasSubmenu: true,
+                hasUrl: false,
+                url: "",
                 submenu: [
                     { name: "Performance", isActive: false },
                     { name: "Speed Analysis", isActive: false },
@@ -133,13 +172,17 @@ const sidebarItems = [
                 name: "Mastery Map", 
                 icon: Target, 
                 isActive: false, 
-                hasSubmenu: false
+                hasSubmenu: false,
+                hasUrl: false,
+                url: ""
             },
             { 
                 name: "Spaced Review", 
                 icon: RotateCcw, 
                 isActive: false, 
                 hasSubmenu: true,
+                hasUrl: false,
+                url: "",
                 submenu: [
                     { name: "Due Today", isActive: false },
                     { name: "Schedule", isActive: false },
@@ -169,17 +212,6 @@ const sidebarItems = [
     }
 ];
 
-export default function Dashboard() {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [mounted, setMounted] = useState(false);
-    const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({});
-    const [showProblemExplorer, setShowProblemExplorer] = useState(false);
-    const [practiceProblems, setPracticeProblems] = useState<Problem[]>([]);
-    const [showPracticeSession, setShowPracticeSession] = useState(false);
-    const auth = getAuth();
-    const navigate = useNavigate();
-
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
@@ -187,6 +219,9 @@ export default function Dashboard() {
             
             if (!currentUser) {
                 navigate('/login');
+            } else {
+                // Initialize display name for editing
+                setNewDisplayName(currentUser.displayName || '');
             }
         });
 
@@ -232,6 +267,189 @@ export default function Dashboard() {
         }
     };
 
+    // Function to get Supabase JWT token using your edge function
+    const getSupabaseToken = async (): Promise<string> => {
+        if (!user) {
+            throw new Error('No Firebase user signed in');
+        }
+
+        console.log('Getting Firebase ID token...');
+        const idToken = await user.getIdToken(true);
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        
+        console.log('Calling edge function...');
+        const response = await fetch(`${supabaseUrl}/functions/v1/session-auth`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Edge function failed: ${errorData.error}`);
+        }
+
+        const data = await response.json();
+        console.log('Got Supabase token');
+        
+        return data.access_token;
+    };
+
+    // Function to update display name in Supabase database
+    const updateDisplayNameInDatabase = async (displayName: string): Promise<void> => {
+        if (!user) {
+            throw new Error('No Firebase user signed in');
+        }
+
+        console.log('Updating display name in database...');
+        const token = await getSupabaseToken();
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/user_profiles?id=eq.${user.uid}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': anonKey,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({
+                display_name: displayName,
+                last_seen: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Database update error:', errorText);
+            
+            // If profile doesn't exist, try to create it
+            if (response.status === 404 || errorText.includes('No rows found')) {
+                console.log('Profile not found, creating new profile...');
+                await createUserProfile(displayName);
+                return;
+            }
+            
+            throw new Error(`Database update failed: HTTP ${response.status}: ${errorText}`);
+        }
+
+        const updatedProfile = await response.json();
+        console.log('Display name updated in database:', updatedProfile);
+    };
+
+    // Function to create user profile in database
+    const createUserProfile = async (displayName: string): Promise<void> => {
+        if (!user) {
+            throw new Error('No Firebase user signed in');
+        }
+
+        console.log('Creating user profile in database...');
+        const token = await getSupabaseToken();
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+        const profileData = {
+            id: user.uid,
+            email: user.email,
+            display_name: displayName,
+            last_seen: new Date().toISOString()
+        };
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/user_profiles`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': anonKey,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(profileData)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            
+            // Check if it's a duplicate key error (profile already exists)
+            if (response.status === 409 || errorText.includes('duplicate key')) {
+                console.log('Profile already exists, updating instead...');
+                await updateDisplayNameInDatabase(displayName);
+                return;
+            }
+            
+            throw new Error(`Profile creation failed: HTTP ${response.status}: ${errorText}`);
+        }
+
+        const createdProfile = await response.json();
+        console.log('User profile created:', createdProfile);
+    };
+
+    const handleEditDisplayName = () => {
+        setIsEditingDisplayName(true);
+        setNewDisplayName(user?.displayName || '');
+        setDisplayNameError('');
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditingDisplayName(false);
+        setNewDisplayName(user?.displayName || '');
+        setDisplayNameError('');
+    };
+
+    const handleSaveDisplayName = async () => {
+        if (!user || !newDisplayName.trim()) {
+            setDisplayNameError('Display name cannot be empty');
+            return;
+        }
+
+        if (newDisplayName.trim() === user.displayName) {
+            setIsEditingDisplayName(false);
+            return;
+        }
+
+        setIsUpdatingDisplayName(true);
+        setDisplayNameError('');
+
+        try {
+            const trimmedName = newDisplayName.trim();
+            
+            // Update Firebase Auth profile first
+            console.log('Updating Firebase Auth profile...');
+            await updateProfile(user, {
+                displayName: trimmedName
+            });
+
+            // Update display name in Supabase database
+            await updateDisplayNameInDatabase(trimmedName);
+
+            // Force refresh the user object to get updated data
+            await user.reload();
+            
+            setIsEditingDisplayName(false);
+            console.log('Display name updated successfully in both Firebase and database');
+        } catch (error) {
+            console.error('Error updating display name:', error);
+            
+            // Provide more specific error messages
+            if (error instanceof Error) {
+                if (error.message.includes('Edge function failed')) {
+                    setDisplayNameError('Failed to authenticate with database. Please try again.');
+                } else if (error.message.includes('Database update failed')) {
+                    setDisplayNameError('Failed to update database. Your Firebase profile was updated but database sync failed.');
+                } else {
+                    setDisplayNameError(`Failed to update display name: ${error.message}`);
+                }
+            } else {
+                setDisplayNameError('Failed to update display name. Please try again.');
+            }
+        } finally {
+            setIsUpdatingDisplayName(false);
+        }
+    };
+
     const toggleSubmenu = (menuKey: string) => {
         setExpandedMenus(prev => ({
             ...prev,
@@ -255,6 +473,11 @@ export default function Dashboard() {
         setShowPracticeSession(false);
         setPracticeProblems([]);
     };
+
+    const handleNavigate = (url: string) => {
+        navigate(url);
+    };
+   
 
     const stats = [
         {
@@ -389,7 +612,17 @@ export default function Dashboard() {
                                                     className={`group flex items-center justify-between px-2 py-2 rounded-lg transition-all duration-200 hover:bg-slate-800/50 cursor-pointer ${
                                                         item.isActive ? 'bg-blue-500/10 border-l-2 border-blue-500' : ''
                                                     }`}
-                                                    onClick={() => item.hasSubmenu && toggleSubmenu(menuKey)}
+                                                    onClick={() => {
+                                                            if (item.hasUrl && item.url.length > 0) {
+                                                                handleNavigate(item.url);
+                                                                // Usually, you do not want to open the submenu if navigating away
+                                                                // So return early
+                                                                return;
+                                                            }
+                                                            if (item.hasSubmenu) {
+                                                                toggleSubmenu(menuKey);
+                                                            }
+                                                            }}
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <item.icon className={`w-4 h-4 ${item.isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
@@ -662,10 +895,63 @@ export default function Dashboard() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-slate-400">Display Name</label>
-                                        <p className="text-sm text-white font-medium px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700">
-                                            {user?.displayName || 'Not set'}
-                                        </p>
+                                        <label className="text-sm font-medium text-slate-400">
+                                            Display Name
+                                            <span className="text-xs text-slate-500 ml-2">(syncs to database)</span>
+                                        </label>
+                                        {isEditingDisplayName ? (
+                                            <div className="space-y-2">
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={newDisplayName}
+                                                        onChange={(e) => setNewDisplayName(e.target.value)}
+                                                        placeholder="Enter display name"
+                                                        className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                                                        disabled={isUpdatingDisplayName}
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveDisplayName}
+                                                        disabled={isUpdatingDisplayName || !newDisplayName.trim()}
+                                                        className="px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 transform hover:scale-105 font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+                                                    >
+                                                        {isUpdatingDisplayName ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Save className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelEdit}
+                                                        disabled={isUpdatingDisplayName}
+                                                        className="px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                                {displayNameError && (
+                                                    <p className="text-xs text-red-400">{displayNameError}</p>
+                                                )}
+                                                {isUpdatingDisplayName && (
+                                                    <p className="text-xs text-blue-400">
+                                                        Updating Firebase profile and syncing to database...
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <p className="flex-1 text-sm text-white font-medium px-3 py-2 bg-slate-900/50 rounded-lg border border-slate-700">
+                                                    {user?.displayName || 'Not set'}
+                                                </p>
+                                                <button
+                                                    onClick={handleEditDisplayName}
+                                                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors duration-200 text-slate-400 hover:text-white"
+                                                    title="Edit display name"
+                                                >
+                                                    <Edit3 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-400">Last Sign In</label>
@@ -734,7 +1020,7 @@ export default function Dashboard() {
                                 <div className="space-y-2">
                                     <p className="text-slate-300 font-medium">Practice session ready!</p>
                                     <p className="text-sm text-slate-500">
-                                        Your problem-solving interface would be implemented here
+                                        Problem-solving interface would be implemented here
                                     </p>
                                     <div className="mt-4 p-4 bg-slate-800/50 rounded-lg">
                                         <p className="text-xs text-slate-400 mb-2">Problems loaded:</p>

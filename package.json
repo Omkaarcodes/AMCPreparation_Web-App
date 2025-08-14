@@ -9,7 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
-    "test": "vitest",
+    "test": "playwright test",
     "test:ui": "vitest --ui"
   },
   "dependencies": {
@@ -84,6 +84,7 @@
     "recharts": "^2.15.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.179.1",
     "tw-animate-css": "^1.3.5",
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
@@ -92,6 +93,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@replit/vite-plugin-cartographer": "^0.2.7",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
@@ -104,6 +106,7 @@
     "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.179.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.21",

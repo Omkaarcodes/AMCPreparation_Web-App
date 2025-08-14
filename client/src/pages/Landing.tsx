@@ -224,7 +224,7 @@ export default function LandingPage() {
         </div>
       </header>
     <div className="relative h-screen bg-cover bg-center bg-no-repeat" 
-         style={{ backgroundImage: "url('./attached_assets/LandingPageBackground.jpg')" }}>
+         style={{ backgroundImage: "url('/attached_assets/LandingPageBackground.jpeg')" }}>
         <div className="absolute inset-0 bg-black opacity-50"></div>
       {/* Hero Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
