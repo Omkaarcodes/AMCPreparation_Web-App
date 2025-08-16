@@ -2,6 +2,7 @@
 import { Button } from "../components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/infocard"
 import { Badge } from "../components/ui/badge"
+import * as THREE from 'three'
 import { motion } from "framer-motion"
 import {
   Brain,

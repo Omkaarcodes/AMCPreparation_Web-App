@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { 
     getAuth, 
     onAuthStateChanged,
@@ -59,11 +59,16 @@ import {
     X,
     Edit3,
     Save,
-    Loader2
+    Loader2,
+    Zap,
+    Award,
+    TrendingUpIcon,
+    CheckCircle,
+    AlertCircle
 } from "lucide-react";
 
 import ProblemsSolvedWidget from './Problem_Explorer'
-import path from "path";
+import { XPProgressManager, XPProgress } from '../../components/XPBonuses';
 
 // Add Problem interface
 interface Problem {
@@ -89,6 +94,18 @@ interface UserProfile {
     last_seen?: string;
 }
 
+// XP Action Types for different activities
+const XP_ACTIONS = {
+    PROBLEM_SOLVED_EASY: { amount: 10, message: "Easy problem solved!" },
+    PROBLEM_SOLVED_MEDIUM: { amount: 20, message: "Medium problem solved!" },
+    PROBLEM_SOLVED_HARD: { amount: 35, message: "Hard problem solved!" },
+    QUIZ_COMPLETED: { amount: 50, message: "Quiz completed!" },
+    DAILY_LOGIN: { amount: 5, message: "Daily login bonus!" },
+    STREAK_BONUS: { amount: 10, message: "Streak bonus!" },
+    FIRST_TRY_CORRECT: { amount: 5, message: "First try bonus!" },
+    TOPIC_MASTERY: { amount: 100, message: "Topic mastered!" }
+};
+
 export default function Dashboard() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
@@ -98,7 +115,19 @@ export default function Dashboard() {
     const [practiceProblems, setPracticeProblems] = useState<Problem[]>([]);
     const [showPracticeSession, setShowPracticeSession] = useState(false);
     
-    // New state for display name editing
+    // XP and Progress related state
+    const [xpProgress, setXpProgress] = useState<XPProgress | null>(null);
+    const [xpManager, setXpManager] = useState<XPProgressManager | null>(null);
+    const [xpLoading, setXpLoading] = useState(true);
+    const [showXPNotification, setShowXPNotification] = useState(false);
+    const [xpNotificationData, setXpNotificationData] = useState<{
+        amount: number;
+        message: string;
+        levelUp?: { oldLevel: number; newLevel: number };
+    } | null>(null);
+    const [unsavedXP, setUnsavedXP] = useState(0);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    
     const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
     const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
@@ -106,111 +135,221 @@ export default function Dashboard() {
     
     const auth = getAuth();
     const navigate = useNavigate();
+    const xpManagerRef = useRef<XPProgressManager | null>(null);
 
     const sidebarItems = [
-    {
-        label: "Practice",
-        items: [
-            { 
-                name: "Dashboard", 
-                icon: Home, 
-                isActive: true, 
-                hasSubmenu: false,
-                hasUrl: false,
-                url: ""
-            },
-            { 
-                name: "Topic Practice", 
-                icon: BookOpen, 
-                isActive: false, 
-                hasSubmenu: true,
-                hasUrl: false,
-                url: "",
+        {
+            label: "Practice",
+            items: [
+                { 
+                    name: "Dashboard", 
+                    icon: Home, 
+                    isActive: true, 
+                    hasSubmenu: false,
+                    hasUrl: false,
+                    url: ""
+                },
+                { 
+                    name: "Topic Practice", 
+                    icon: BookOpen, 
+                    isActive: false, 
+                    hasSubmenu: true,
+                    hasUrl: false,
+                    url: "",
+                    submenu: [
+                        { name: "Algebra", isActive: false },
+                        { name: "Geometry", isActive: false },
+                        { name: "Number Theory", isActive: false },
+                        { name: "Combinatorics", isActive: false },
+                        { name: "Probability", isActive: false }
+                    ]
+                },
+                { 
+                    name: "Adaptive Quiz", 
+                    icon: Brain, 
+                    isActive: false, 
+                    hasSubmenu: true,
+                    hasUrl: false,
+                    url: "",
+                    submenu: [
+                        { name: "Quick Quiz", isActive: false },
+                        { name: "Adaptive Mode", isActive: false },
+                        { name: "Difficulty Ladder", isActive: false }
+                    ]
+                },
+                { name: "Mock Exams", icon: Clock, isActive: false, hasUrl: true, url: "/mock-exams" },
+                { name: "Error Journal", icon: BookMarked, isActive: false, hasUrl: false, url: "" },
+            ]
+        },
+        {
+            label: "Progress",
+            items: [
+                { 
+                    name: "Analytics", 
+                    icon: BarChart3, 
+                    isActive: false, 
+                    hasSubmenu: true,
+                    hasUrl: false,
+                    url: "",
+                    submenu: [
+                        { name: "Performance", isActive: false },
+                        { name: "Speed Analysis", isActive: false },
+                        { name: "Topic Mastery", isActive: false }
+                    ]
+                },
+                { 
+                    name: "Mastery Map", 
+                    icon: Target, 
+                    isActive: false, 
+                    hasSubmenu: false,
+                    hasUrl: false,
+                    url: ""
+                },
+                { 
+                    name: "Spaced Review", 
+                    icon: RotateCcw, 
+                    isActive: false, 
+                    hasSubmenu: true,
+                    hasUrl: false,
+                    url: "",
+                    submenu: [
+                        { name: "Due Today", isActive: false },
+                        { name: "Schedule", isActive: false },
+                        { name: "Overdue", isActive: false }
+                    ]
+                },
+                { name: "Study Streaks", icon: Flame, isActive: false },
+            ]
+        },
+        {
+            label: "Competition",
+            items: [
+                { name: "Weekly Challenges", icon: Calendar, isActive: false },
+                { name: "Badges & XP", icon: Star, isActive: false },
+            ]
+        },
+        {
+            label: "Library",
+            items: [
+                { name: "Problem Bank", icon: Database, isActive: false },
+                { name: "Custom Playlists", icon: List, isActive: false },
+                { name: "Saved Problems", icon: Bookmark, isActive: false },
+                { name: "Settings", icon: Settings, isActive: false },
+            ]
+        }
+    ];
 
-                submenu: [
-                    { name: "Algebra", isActive: false },
-                    { name: "Geometry", isActive: false },
-                    { name: "Number Theory", isActive: false },
-                    { name: "Combinatorics", isActive: false },
-                    { name: "Probability", isActive: false }
-                ]
-            },
-            { 
-                name: "Adaptive Quiz", 
-                icon: Brain, 
-                isActive: false, 
-                hasSubmenu: true,
-                hasUrl: false,
-                url: "",
-                submenu: [
-                    { name: "Quick Quiz", isActive: false },
-                    { name: "Adaptive Mode", isActive: false },
-                    { name: "Difficulty Ladder", isActive: false }
-                ]
-            },
-            { name: "Mock Exams", icon: Clock, isActive: false, hasUrl: true, url: "/mock-exams" },
-            { name: "Error Journal", icon: BookMarked, isActive: false, hasUrl: false, url: "" },
-        ]
-    },
-    {
-        label: "Progress",
-        items: [
-            { 
-                name: "Analytics", 
-                icon: BarChart3, 
-                isActive: false, 
-                hasSubmenu: true,
-                hasUrl: false,
-                url: "",
-                submenu: [
-                    { name: "Performance", isActive: false },
-                    { name: "Speed Analysis", isActive: false },
-                    { name: "Topic Mastery", isActive: false }
-                ]
-            },
-            { 
-                name: "Mastery Map", 
-                icon: Target, 
-                isActive: false, 
-                hasSubmenu: false,
-                hasUrl: false,
-                url: ""
-            },
-            { 
-                name: "Spaced Review", 
-                icon: RotateCcw, 
-                isActive: false, 
-                hasSubmenu: true,
-                hasUrl: false,
-                url: "",
-                submenu: [
-                    { name: "Due Today", isActive: false },
-                    { name: "Schedule", isActive: false },
-                    { name: "Overdue", isActive: false }
-                ]
-            },
-            { name: "Study Streaks", icon: Flame, isActive: false },
-        ]
-    },
-    {
-        label: "Competition",
-        items: [
-
-            { name: "Weekly Challenges", icon: Calendar, isActive: false },
+    // Initialize XP Manager when user is available
+    const initializeXPManager = useCallback(async (currentUser: User) => {
+        try {
+            const manager = new XPProgressManager(currentUser);
+            const progress = await manager.loadProgress();
             
-            { name: "Badges & XP", icon: Star, isActive: false },
-        ]
-    },
-    {
-        label: "Library",
-        items: [
-            { name: "Problem Bank", icon: Database, isActive: false },
-            { name: "Custom Playlists", icon: List, isActive: false },
-            { name: "Saved Problems", icon: Bookmark, isActive: false },
-            { name: "Settings", icon: Settings, isActive: false },
-        ]
-    }
-];
+            setXpManager(manager);
+            setXpProgress(progress);
+            xpManagerRef.current = manager;
+            
+            // Award daily login bonus if it's a new day
+            awardDailyLoginBonus(manager, progress);
+            
+            setXpLoading(false);
+        } catch (error) {
+            console.error('Failed to initialize XP manager:', error);
+            setXpLoading(false);
+        }
+    }, []);
+
+    // Award daily login bonus
+    const awardDailyLoginBonus = (manager: XPProgressManager, progress: XPProgress) => {
+        const today = new Date();
+        const lastXPDate = progress.last_xp_earned ? new Date(progress.last_xp_earned) : null;
+        
+        if (!lastXPDate || lastXPDate.toDateString() !== today.toDateString()) {
+            const result = manager.addXP(XP_ACTIONS.DAILY_LOGIN.amount, 'daily_login');
+            showXPGain(XP_ACTIONS.DAILY_LOGIN.amount, XP_ACTIONS.DAILY_LOGIN.message, result);
+            
+            // Update streak
+            manager.updateStreak(true);
+            
+            // Check for streak bonus
+            const currentProgress = manager.getCurrentProgress();
+            if (currentProgress.streak_days > 1 && currentProgress.streak_days % 7 === 0) {
+                const streakResult = manager.addXP(XP_ACTIONS.STREAK_BONUS.amount, 'streak_bonus');
+                setTimeout(() => {
+                    showXPGain(XP_ACTIONS.STREAK_BONUS.amount, `${currentProgress.streak_days} day streak bonus!`, streakResult);
+                }, 1500);
+            }
+            
+            setXpProgress(manager.getCurrentProgress());
+        }
+    };
+
+    // Show XP gain notification
+    const showXPGain = (amount: number, message: string, result?: { leveledUp: boolean; newLevel?: number; oldLevel?: number }) => {
+        setXpNotificationData({
+            amount,
+            message,
+            levelUp: result?.leveledUp ? { oldLevel: result.oldLevel!, newLevel: result.newLevel! } : undefined
+        });
+        setShowXPNotification(true);
+        
+        // Auto hide notification
+        setTimeout(() => {
+            setShowXPNotification(false);
+            setXpNotificationData(null);
+        }, result?.leveledUp ? 5000 : 3000);
+    };
+
+    // Public method to award XP (can be called from other components)
+    const awardXP = useCallback((action: keyof typeof XP_ACTIONS, customAmount?: number, customMessage?: string) => {
+        if (!xpManager) return;
+        
+        const xpData = XP_ACTIONS[action];
+        const amount = customAmount ?? xpData.amount;
+        const message = customMessage ?? xpData.message;
+        
+        const result = xpManager.addXP(amount, action);
+        showXPGain(amount, message, result);
+        
+        setXpProgress(xpManager.getCurrentProgress());
+        setUnsavedXP(xpManager.getPendingXP());
+    }, [xpManager]);
+
+    // Set up online/offline listeners
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            if (xpManager) {
+                xpManager.setOnlineStatus(true);
+            }
+        };
+
+        const handleOffline = () => {
+            setIsOnline(false);
+            if (xpManager) {
+                xpManager.setOnlineStatus(false);
+            }
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [xpManager]);
+
+    // Update unsaved XP periodically
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (xpManager) {
+                setUnsavedXP(xpManager.getPendingXP());
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [xpManager]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -220,33 +359,42 @@ export default function Dashboard() {
             if (!currentUser) {
                 navigate('/login');
             } else {
-                // Initialize display name for editing
                 setNewDisplayName(currentUser.displayName || '');
+                initializeXPManager(currentUser);
             }
         });
 
         return () => unsubscribe();
-    }, [auth, navigate]);
+    }, [auth, navigate, initializeXPManager]);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-   const globalStyles = `
-    * {
-      font-family: 'Noto Serif JP', serif !important;
-    }
-  `;
+    // Cleanup XP manager on unmount
+    useEffect(() => {
+        return () => {
+            if (xpManagerRef.current) {
+                xpManagerRef.current.destroy();
+            }
+        };
+    }, []);
 
-  useEffect(() => {
-    const styleElement = document.createElement('style');
-    styleElement.textContent = globalStyles;
-    document.head.appendChild(styleElement);
-    
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
+    const globalStyles = `
+        * {
+          font-family: 'Noto Serif JP', serif !important;
+        }
+      `;
+
+    useEffect(() => {
+        const styleElement = document.createElement('style');
+        styleElement.textContent = globalStyles;
+        document.head.appendChild(styleElement);
+        
+        return () => {
+          document.head.removeChild(styleElement);
+        };
+    }, []);
 
     const getDisplayName = () => {
         if (user?.displayName) {
@@ -260,6 +408,9 @@ export default function Dashboard() {
 
     const handleLogout = async () => {
         try {
+            if (xpManager) {
+                await xpManager.forceSave();
+            }
             await signOut(auth);
             navigate('/');
         } catch (error) {
@@ -267,7 +418,7 @@ export default function Dashboard() {
         }
     };
 
-    // Function to get Supabase JWT token using your edge function
+    // Existing functions for display name management...
     const getSupabaseToken = async (): Promise<string> => {
         if (!user) {
             throw new Error('No Firebase user signed in');
@@ -298,7 +449,6 @@ export default function Dashboard() {
         return data.access_token;
     };
 
-    // Function to update display name in Supabase database
     const updateDisplayNameInDatabase = async (displayName: string): Promise<void> => {
         if (!user) {
             throw new Error('No Firebase user signed in');
@@ -327,7 +477,6 @@ export default function Dashboard() {
             const errorText = await response.text();
             console.error('Database update error:', errorText);
             
-            // If profile doesn't exist, try to create it
             if (response.status === 404 || errorText.includes('No rows found')) {
                 console.log('Profile not found, creating new profile...');
                 await createUserProfile(displayName);
@@ -341,7 +490,6 @@ export default function Dashboard() {
         console.log('Display name updated in database:', updatedProfile);
     };
 
-    // Function to create user profile in database
     const createUserProfile = async (displayName: string): Promise<void> => {
         if (!user) {
             throw new Error('No Firebase user signed in');
@@ -373,7 +521,6 @@ export default function Dashboard() {
         if (!response.ok) {
             const errorText = await response.text();
             
-            // Check if it's a duplicate key error (profile already exists)
             if (response.status === 409 || errorText.includes('duplicate key')) {
                 console.log('Profile already exists, updating instead...');
                 await updateDisplayNameInDatabase(displayName);
@@ -416,16 +563,12 @@ export default function Dashboard() {
         try {
             const trimmedName = newDisplayName.trim();
             
-            // Update Firebase Auth profile first
             console.log('Updating Firebase Auth profile...');
             await updateProfile(user, {
                 displayName: trimmedName
             });
 
-            // Update display name in Supabase database
             await updateDisplayNameInDatabase(trimmedName);
-
-            // Force refresh the user object to get updated data
             await user.reload();
             
             setIsEditingDisplayName(false);
@@ -433,7 +576,6 @@ export default function Dashboard() {
         } catch (error) {
             console.error('Error updating display name:', error);
             
-            // Provide more specific error messages
             if (error instanceof Error) {
                 if (error.message.includes('Edge function failed')) {
                     setDisplayNameError('Failed to authenticate with database. Please try again.');
@@ -477,7 +619,16 @@ export default function Dashboard() {
     const handleNavigate = (url: string) => {
         navigate(url);
     };
-   
+
+    // Demo function to test XP system
+    const testXPGain = () => {
+        awardXP('PROBLEM_SOLVED_MEDIUM');
+    };
+
+    // Get level progress percentage
+    const getLevelProgress = () => {
+        return xpManager ? xpManager.getLevelProgress() : 0;
+    };
 
     const stats = [
         {
@@ -494,9 +645,9 @@ export default function Dashboard() {
         },
         {
             title: "Current Streak",
-            value: "15 days",
-            change: "+2",
-            changeText: "from last week",
+            value: xpProgress ? `${xpProgress.streak_days} days` : "0 days",
+            change: xpProgress && xpProgress.streak_days > 0 ? `+${xpProgress.streak_days > 1 ? '1' : xpProgress.streak_days}` : "0",
+            changeText: "streak active",
             icon: Flame,
             color: "text-orange-400",
             bgColor: "bg-orange-500/10",
@@ -504,25 +655,25 @@ export default function Dashboard() {
             trend: "up"
         },
         {
-            title: "Accuracy Rate",
-            value: "84.2%",
-            change: "+5.1%",
-            changeText: "improvement",
-            icon: BarChart3,
-            color: "text-blue-400",
-            bgColor: "bg-blue-500/10",
-            borderColor: "border-blue-500/20",
-            trend: "up"
-        },
-        {
-            title: "XP Points",
-            value: "8,573",
-            change: "+127",
-            changeText: "today",
+            title: "Current Level",
+            value: xpProgress ? `Level ${xpProgress.current_level}` : "Level 1",
+            change: `${Math.round(getLevelProgress())}%`,
+            changeText: "to next level",
             icon: Star,
             color: "text-purple-400",
             bgColor: "bg-purple-500/10",
             borderColor: "border-purple-500/20",
+            trend: "up"
+        },
+        {
+            title: "Total XP",
+            value: xpProgress ? xpProgress.total_xp.toLocaleString() : "0",
+            change: xpProgress ? `+${xpProgress.daily_xp_earned}` : "+0",
+            changeText: "today",
+            icon: Zap,
+            color: "text-blue-400",
+            bgColor: "bg-blue-500/10",
+            borderColor: "border-blue-500/20",
             trend: "up"
         }
     ];
@@ -530,7 +681,7 @@ export default function Dashboard() {
     const recentActivities = [
         {
             action: "Completed Algebra Quiz",
-            user: "Score: 9/10",
+            user: "Score: 9/10 (+50 XP)",
             time: "2 minutes ago",
             type: "quiz",
             color: "bg-emerald-500"
@@ -544,7 +695,7 @@ export default function Dashboard() {
         },
         {
             action: "Geometry topic mastery",
-            user: "85% accuracy reached",
+            user: "85% accuracy reached (+100 XP)",
             time: "3 hours ago",
             type: "mastery",
             color: "bg-blue-500"
@@ -576,6 +727,48 @@ export default function Dashboard() {
 
     return (
         <>
+            {/* XP Notification */}
+            {showXPNotification && xpNotificationData && (
+                <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right-4 fade-in duration-500">
+                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-xl shadow-2xl border border-blue-400/20 max-w-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-lg">
+                                <Zap className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-medium">+{xpNotificationData.amount} XP</p>
+                                <p className="text-sm opacity-90">{xpNotificationData.message}</p>
+                                {xpNotificationData.levelUp && (
+                                    <p className="text-xs font-bold text-yellow-300 animate-pulse">
+                                        Level Up! {xpNotificationData.levelUp.oldLevel} → {xpNotificationData.levelUp.newLevel}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Connection Status Indicator */}
+            {!isOnline && (
+                <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-40 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Offline - Progress saved locally
+                    </div>
+                </div>
+            )}
+
+            {/* Unsaved Changes Indicator */}
+            {unsavedXP > 0 && (
+                <div className="fixed bottom-4 right-4 z-40">
+                    <div className="bg-yellow-500/90 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2">
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                        {unsavedXP} XP pending save
+                    </div>
+                </div>
+            )}
+
             <div className="flex h-screen bg-slate-900">
                 {/* Fixed Sidebar */}
                 <div className="w-64 bg-slate-950 border-r border-slate-800/50 flex flex-col">
@@ -592,6 +785,27 @@ export default function Dashboard() {
                         </div>
                     </div>
 
+                    {/* XP Progress Bar */}
+                    {xpProgress && !xpLoading && (
+                        <div className="p-4 border-b border-slate-800/50">
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-medium text-slate-400">Level {xpProgress.current_level}</span>
+                                    <span className="text-xs text-slate-400">{xpProgress.total_xp.toLocaleString()} XP</span>
+                                </div>
+                                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                    <div 
+                                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-500 ease-out"
+                                        style={{ width: `${getLevelProgress()}%` }}
+                                    ></div>
+                                </div>
+                                <div className="text-xs text-slate-500 text-center">
+                                    {Math.round(getLevelProgress())}% to Level {xpProgress.current_level + 1}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Navigation */}
                     <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
                         {sidebarItems.map((section, sectionIndex) => (
@@ -607,7 +821,6 @@ export default function Dashboard() {
                                         
                                         return (
                                             <div key={itemIndex}>
-                                                {/* Main menu item */}
                                                 <div 
                                                     className={`group flex items-center justify-between px-2 py-2 rounded-lg transition-all duration-200 hover:bg-slate-800/50 cursor-pointer ${
                                                         item.isActive ? 'bg-blue-500/10 border-l-2 border-blue-500' : ''
@@ -615,8 +828,6 @@ export default function Dashboard() {
                                                     onClick={() => {
                                                             if (item.hasUrl && item.url.length > 0) {
                                                                 handleNavigate(item.url);
-                                                                // Usually, you do not want to open the submenu if navigating away
-                                                                // So return early
                                                                 return;
                                                             }
                                                             if (item.hasSubmenu) {
@@ -641,7 +852,6 @@ export default function Dashboard() {
                                                     )}
                                                 </div>
                                                 
-                                                {/* Submenu */}
                                                 {item.hasSubmenu && isExpanded && item.submenu && (
                                                     <div className="ml-6 mt-1 space-y-1 animate-in slide-in-from-top-2 fade-in duration-200">
                                                         {item.submenu.map((subItem, subIndex) => (
@@ -717,6 +927,15 @@ export default function Dashboard() {
                                     <Bell className="h-5 w-5 text-slate-400 hover:text-white" />
                                     <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full animate-pulse"></span>
                                 </button>
+
+                                {/* Test XP Button - Remove in production
+                                <button 
+                                    onClick={testXPGain}
+                                    className="px-3 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30 transition-colors"
+                                    title="Test XP Gain"
+                                >
+                                    +XP
+                                </button> */}
                             </div>
                         </div>
                     </header>
@@ -731,7 +950,7 @@ export default function Dashboard() {
                                         Welcome back, {getDisplayName()}!
                                     </h1>
                                     <p className="text-slate-400">
-                                        Here's the latest in your AMC 10/12 preparation!
+                                        Here's the latest in your AMC 10/12 preparation journey!
                                     </p>
                                 </div>
                                 <div className="flex items-center space-x-3">
@@ -789,6 +1008,16 @@ export default function Dashboard() {
                                             </div>
                                             <p className="text-xs text-slate-500">{stat.changeText}</p>
                                         </div>
+                                        {stat.title === "Current Level" && xpProgress && (
+                                            <div className="mt-2">
+                                                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                                                    <div 
+                                                        className="bg-gradient-to-r from-purple-500 to-blue-500 h-full rounded-full transition-all duration-500"
+                                                        style={{ width: `${getLevelProgress()}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             ))}
@@ -806,7 +1035,7 @@ export default function Dashboard() {
                                         Performance Analytics
                                     </CardTitle>
                                     <CardDescription className="text-slate-400">
-                                        Your problem-solving performance over the last 30 days
+                                        Your problem-solving performance and XP progression over time
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
@@ -817,10 +1046,22 @@ export default function Dashboard() {
                                                 <BarChart3 className="h-16 w-16 text-slate-500 mx-auto relative" />
                                             </div>
                                             <div className="space-y-2">
-                                                <p className="text-slate-300 font-medium">Progress visualization would go here</p>
+                                                <p className="text-slate-300 font-medium">XP and performance visualization would go here</p>
                                                 <p className="text-sm text-slate-500">
-                                                    Topic mastery, accuracy trends, and speed improvements
+                                                    Level progression, XP trends, topic mastery, and accuracy improvements
                                                 </p>
+                                                {xpProgress && (
+                                                    <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                                                        <div className="bg-slate-800/50 p-3 rounded-lg">
+                                                            <div className="text-blue-400 font-medium">Daily XP</div>
+                                                            <div className="text-white text-lg">{xpProgress.daily_xp_earned}</div>
+                                                        </div>
+                                                        <div className="bg-slate-800/50 p-3 rounded-lg">
+                                                            <div className="text-purple-400 font-medium">Next Level</div>
+                                                            <div className="text-white text-lg">{xpProgress.xp_towards_next} XP</div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -837,7 +1078,7 @@ export default function Dashboard() {
                                         Recent Activity
                                     </CardTitle>
                                     <CardDescription className="text-slate-400">
-                                        Latest activities in your account
+                                        Latest activities and XP gains
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
@@ -861,6 +1102,81 @@ export default function Dashboard() {
                             </Card>
                         </div>
 
+                        {/* XP and Progress Overview */}
+                        {xpProgress && !xpLoading && (
+                            <Card className={`bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-bottom-4 fade-in duration-700' : ''}`}>
+                                <CardHeader className="pb-4">
+                                    <CardTitle className="flex items-center gap-3 text-white">
+                                        <div className="p-2 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-lg">
+                                            <Award className="h-5 w-5 text-white" />
+                                        </div>
+                                        XP Progress & Achievements
+                                    </CardTitle>
+                                    <CardDescription className="text-slate-400">
+                                        Your learning journey and milestone progress
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        {/* Level Progress */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium text-slate-300">Current Level</span>
+                                                <span className="text-sm text-blue-400 font-bold">Level {xpProgress.current_level}</span>
+                                            </div>
+                                            <div className="relative">
+                                                <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
+                                                    <div 
+                                                        className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-full transition-all duration-1000 ease-out relative"
+                                                        style={{ width: `${getLevelProgress()}%` }}
+                                                    >
+                                                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between mt-2 text-xs text-slate-500">
+                                                    <span>{xpProgress.xp_towards_next} XP</span>
+                                                    <span>{Math.round(getLevelProgress())}%</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-400">
+                                                {xpManager ? (xpManager as any).getXPForLevel(xpProgress.current_level) - xpProgress.xp_towards_next : 0} XP needed for Level {xpProgress.current_level + 1}
+                                            </p>
+                                        </div>
+
+                                        {/* Daily Progress */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium text-slate-300">Today's Progress</span>
+                                                <span className="text-sm text-emerald-400 font-bold">+{xpProgress.daily_xp_earned} XP</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <CheckCircle className="h-3 w-3 text-emerald-400" />
+                                                    <span className="text-slate-400">Daily login bonus earned</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <Flame className="h-3 w-3 text-orange-400" />
+                                                    <span className="text-slate-400">{xpProgress.streak_days} day streak active</span>
+                                                </div>
+                                                {xpProgress.streak_days >= 7 && (
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <Trophy className="h-3 w-3 text-yellow-400" />
+                                                        <span className="text-yellow-400">Week streak bonus available!</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => awardXP('PROBLEM_SOLVED_HARD')}
+                                                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all duration-200 transform hover:scale-105 font-medium text-sm"
+                                            >
+                                                Start Practice Session
+                                            </button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         {/* User Info Card */}
                         <Card className={`bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-bottom-4 fade-in duration-700' : ''}`}>
                             <CardHeader className="pb-4">
@@ -871,7 +1187,7 @@ export default function Dashboard() {
                                     Account Information
                                 </CardTitle>
                                 <CardDescription className="text-slate-400">
-                                    Your current account details and status
+                                    Your current account details and settings
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -962,13 +1278,37 @@ export default function Dashboard() {
                                         </p>
                                     </div>
                                 </div>
-                                <div className="mt-6 pt-6 border-t border-slate-700">
-                                    <button
-                                        onClick={handleLogout}
-                                        className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 transform hover:scale-105 font-medium"
-                                    >
-                                        Sign Out
-                                    </button>
+                                <div className="mt-6 pt-6 border-t border-slate-700 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={handleLogout}
+                                            className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 transform hover:scale-105 font-medium"
+                                        >
+                                            Sign Out
+                                        </button>
+                                        
+                                        {xpManager && (
+                                            <button
+                                                onClick={() => xpManager.forceSave()}
+                                                disabled={unsavedXP === 0}
+                                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                                                    unsavedXP > 0 
+                                                        ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/30' 
+                                                        : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                                }`}
+                                            >
+                                                {unsavedXP > 0 ? `Save ${unsavedXP} XP` : 'All Saved'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Connection Status */}
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                                        <span className={`text-xs ${isOnline ? 'text-green-400' : 'text-red-400'}`}>
+                                            {isOnline ? 'Online' : 'Offline'}
+                                        </span>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -977,11 +1317,12 @@ export default function Dashboard() {
             </div>
 
             {/* Problem Explorer Modal */}
-            {showProblemExplorer && (
+            {showProblemExplorer && xpManager &&(
                 <ProblemsSolvedWidget 
                     isOpen={showProblemExplorer}
                     onClose={() => setShowProblemExplorer(false)}
                     onStartPractice={handleStartPractice}
+                    xpManager={xpManager}
                 />
             )}
 
@@ -1035,6 +1376,12 @@ export default function Dashboard() {
                                             ))}
                                         </div>
                                     </div>
+                                    <button
+                                        onClick={() => awardXP('QUIZ_COMPLETED')}
+                                        className="mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 transform hover:scale-105 font-medium"
+                                    >
+                                        Complete Practice (+50 XP)
+                                    </button>
                                 </div>
                             </div>
                         </div>

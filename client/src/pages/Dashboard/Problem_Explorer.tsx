@@ -5,6 +5,9 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { supabase } from '../supabase-client';
+import { XPProgressManager } from '../../components/XPBonuses'; 
+import { useLevelUpNotification, LevelUpNotification } from '../../components/notifications/LevelUp';
+
 
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
@@ -34,6 +37,7 @@ interface ProblemsSolvedWidgetProps {
     isOpen: boolean;
     onClose: () => void;
     onStartPractice: (problems: Problem[]) => void;
+    xpManager: XPProgressManager; 
 }
 
 interface ProblemState {
@@ -124,8 +128,12 @@ const MathRenderer: React.FC<{ content: string; className?: string }> = ({ conte
 export default function ProblemsSolvedWidget({ 
     isOpen, 
     onClose, 
-    onStartPractice 
+    onStartPractice,
+    xpManager 
 }: ProblemsSolvedWidgetProps) {
+
+    const { notification, showLevelUp, hideLevelUp } = useLevelUpNotification();
+
     const [filters, setFilters] = useState<ProblemFilters>({
         topic: '',
         difficulty: 5, // Default to medium difficulty
@@ -389,6 +397,27 @@ export default function ProblemsSolvedWidget({
         setIsActive(false);
     };
 
+    // Helper function to add XP and handle level up notifications
+    const addXPToManager = (amount: number, source: string): { leveledUp: boolean; newLevel?: number; oldLevel?: number } => {
+        if (amount <= 0) {
+            return { leveledUp: false };
+        }
+
+        try {
+            const result = xpManager.addXP(amount, source);
+            
+            if (result.leveledUp && result.oldLevel && result.newLevel) {
+                showLevelUp(result.oldLevel, result.newLevel);
+                console.log(`🎉 Level up! From ${result.oldLevel} to ${result.newLevel}`);
+            }
+            return result;
+
+        } catch (error) {
+            console.error('Error adding XP:', error);
+            return { leveledUp: false };
+        }
+};
+
     const handleSubmitAnswer = () => {
         const problem = getCurrentProblem();
         const state = getCurrentProblemState();
@@ -398,11 +427,17 @@ export default function ProblemsSolvedWidget({
         const isCorrect = normalizeAnswer(state.userAnswer) === normalizeAnswer(problem.answer);
         
         let xpGained = 0;
+        let levelUpResult = { leveledUp: false };
+        
         if (isCorrect) {
             const baseDifficulty = parseInt(problem.difficulty) || 5;
             const baseXP = baseDifficulty * 2; // 2 XP per difficulty point
             const timeBonus = Math.max(0, Math.floor((180 - timeSpent) / 10)); // Bonus for speed
             xpGained = baseXP + timeBonus;
+            
+            // Add XP to the manager with descriptive source
+            const source = `${problem.topic} Problem (Level ${problem.difficulty})`;
+            levelUpResult = addXPToManager(xpGained, source);
         }
         
         setProblemStates(prev => ({
@@ -417,6 +452,10 @@ export default function ProblemsSolvedWidget({
             }
         }));
         
+        // Optional: Show level up notification
+        if (levelUpResult.leveledUp) {
+        }
+        
         setIsActive(false);
     };
 
@@ -428,13 +467,18 @@ export default function ProblemsSolvedWidget({
         const timeSpent = Math.floor((Date.now() - problemStartTime) / 1000);
         const isCorrect = option === normalizeAnswer(problem.answer);
         
-        // Calculate XP
         let xpGained = 0;
+        let levelUpResult = { leveledUp: false };
+        
         if (isCorrect) {
             const baseDifficulty = parseInt(problem.difficulty) || 5;
             const baseXP = baseDifficulty * 2;
             const timeBonus = Math.max(0, Math.floor((180 - timeSpent) / 10));
             xpGained = baseXP + timeBonus;
+            
+            // Add XP to the manager with descriptive source
+            const source = `${problem.topic} Problem (Level ${problem.difficulty})`;
+            levelUpResult = addXPToManager(xpGained, source);
         }
         
         setProblemStates(prev => ({
@@ -449,6 +493,10 @@ export default function ProblemsSolvedWidget({
                 xpGained: xpGained
             }
         }));
+        
+        // Optional: Show level up notification
+        if (levelUpResult.leveledUp) {
+        }
         
         setIsActive(false);
     };
@@ -565,6 +613,34 @@ export default function ProblemsSolvedWidget({
                     </CardHeader>
 
                     <CardContent className="p-6 space-y-6">
+                        {/* XP Progress Display */}
+                        {xpManager && (
+                            <Card className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-600/30">
+                                <CardContent className="p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <Zap className="h-5 w-5 text-yellow-400" />
+                                            <span className="text-white font-semibold">Level Progress</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-lg font-bold text-white">Level {xpManager.getCurrentProgress().current_level}</div>
+                                            <div className="text-sm text-gray-400">{stats.totalXP} XP earned this session</div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-300">Progress to next level</span>
+                                            <span className="text-gray-400">
+                                                {xpManager.getCurrentProgress().xp_towards_next} / 
+                                                {Math.floor(100 * Math.pow(1.2, xpManager.getCurrentProgress().current_level - 1))} XP
+                                            </span>
+                                        </div>
+                                        <Progress value={xpManager.getLevelProgress()} className="h-3" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         {/* Overall Stats */}
                         <Card className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-600/30">
                             <CardContent className="p-6">
@@ -802,6 +878,21 @@ export default function ProblemsSolvedWidget({
                                 </div>
                             </div>
 
+                            {/* XP Information */}
+                            {xpManager && (
+                                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Zap className="h-4 w-4 text-purple-400" />
+                                        <span className="text-xs font-medium text-purple-400">XP Progress</span>
+                                    </div>
+                                    <div className="text-xs text-gray-400 space-y-1">
+                                        <p>Current Level: <span className="text-purple-400 font-semibold">{xpManager.getCurrentProgress().current_level}</span></p>
+                                        <p>XP to Next Level: <span className="text-purple-400 font-semibold">{Math.floor(100 * Math.pow(1.2, xpManager.getCurrentProgress().current_level - 1)) - xpManager.getCurrentProgress().xp_towards_next}</span></p>
+                                        <p>Earn 2-20+ XP per correct answer based on difficulty and speed!</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Database Info */}
                             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                                 <div className="flex items-center gap-2 mb-2">
@@ -866,6 +957,12 @@ export default function ProblemsSolvedWidget({
                                                 <div className="flex items-center space-x-2">
                                                     <Zap className="h-4 w-4 text-yellow-400" />
                                                     <span className="text-yellow-400 font-semibold">+{getCurrentProblemState().xpGained} XP</span>
+                                                </div>
+                                            )}
+                                            {xpManager && (
+                                                <div className="flex items-center space-x-2">
+                                                    <TrendingUp className="h-4 w-4 text-purple-400" />
+                                                    <span className="text-purple-400 font-semibold">Lvl {xpManager.getCurrentProgress().current_level}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -1067,6 +1164,14 @@ export default function ProblemsSolvedWidget({
                     )}
                 </CardContent>
             </Card>
+
+            <LevelUpNotification
+                isVisible={notification.isVisible}
+                oldLevel={notification.oldLevel}
+                newLevel={notification.newLevel}
+                onClose={hideLevelUp}
+            />
+            
         </div>
     );
 }

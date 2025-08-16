@@ -23,20 +23,18 @@ export class XPProgressManager {
   private currentProgress: XPProgress;
   private pendingXPGains: XPGain[] = [];
   private lastSaveTime: Date = new Date();
-  private saveInterval: NodeJS.Timeout | null = null;
   private isOnline: boolean = true;
+  private isDestroyed: boolean = false;
 
   // XP Constants
   private static readonly BASE_XP_PER_LEVEL = 100;
   private static readonly XP_MULTIPLIER = 1.2;
-  private static readonly AUTO_SAVE_INTERVAL = 30000; // 30 seconds
-  private static readonly MAX_PENDING_GAINS = 50;
+  private static readonly MAX_PENDING_GAINS = 100; // Increased since we're not auto-saving
 
   constructor(user: User, initialProgress?: XPProgress) {
     this.user = user;
     this.currentProgress = initialProgress || this.getDefaultProgress();
-    this.setupAutoSave();
-    this.setupVisibilityListener();
+    this.setupPageUnloadListeners();
   }
 
   private getDefaultProgress(): XPProgress {
@@ -50,26 +48,32 @@ export class XPProgressManager {
     };
   }
 
-  private setupAutoSave(): void {
-    this.saveInterval = setInterval(() => {
-      if (this.pendingXPGains.length > 0) {
-        this.savePendingXP().catch(console.error);
-      }
-    }, XPProgressManager.AUTO_SAVE_INTERVAL);
-  }
-
-  private setupVisibilityListener(): void {
-    // Save when tab becomes hidden or before unload
+  private setupPageUnloadListeners(): void {
+    // Save when tab becomes hidden (user switches tabs/minimizes)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
+      if (document.visibilityState === 'hidden' && this.pendingXPGains.length > 0) {
         this.savePendingXP().catch(console.error);
       }
     });
 
-    window.addEventListener('beforeunload', () => {
-      // Use sendBeacon for reliable saving before page unload
+    // Save before page unload (refresh, navigation, close)
+    window.addEventListener('beforeunload', (event) => {
       if (this.pendingXPGains.length > 0) {
+        // Use sendBeacon for reliable saving before page unload
         this.sendBeaconSave();
+        
+        // Optional: Show warning if there are unsaved changes
+        // Uncomment if you want to warn users about unsaved progress
+        // event.preventDefault();
+        // event.returnValue = 'You have unsaved progress. Are you sure you want to leave?';
+        // return event.returnValue;
+      }
+    });
+
+    // Save when user navigates using browser back/forward buttons
+    window.addEventListener('popstate', () => {
+      if (this.pendingXPGains.length > 0) {
+        this.savePendingXP().catch(console.error);
       }
     });
   }
@@ -90,6 +94,11 @@ export class XPProgressManager {
 
   // Add XP and handle level ups
   public addXP(amount: number, source: string): { leveledUp: boolean; newLevel?: number; oldLevel?: number } {
+    if (this.isDestroyed) {
+      console.warn('Cannot add XP to destroyed XPProgressManager');
+      return { leveledUp: false };
+    }
+
     const oldLevel = this.currentProgress.current_level;
     
     // Add to pending gains
@@ -115,8 +124,9 @@ export class XPProgressManager {
       leveledUp = true;
     }
 
-    // Auto-save if we have too many pending gains
+    // Only save if we've reached the maximum pending gains limit (safety measure)
     if (this.pendingXPGains.length >= XPProgressManager.MAX_PENDING_GAINS) {
+      console.warn('Maximum pending gains reached, forcing save to prevent data loss');
       this.savePendingXP().catch(console.error);
     }
 
@@ -287,7 +297,7 @@ export class XPProgressManager {
 
   // Save pending XP gains to database
   public async savePendingXP(): Promise<void> {
-    if (this.pendingXPGains.length === 0 || !this.isOnline) {
+    if (this.pendingXPGains.length === 0 || !this.isOnline || this.isDestroyed) {
       return;
     }
 
@@ -336,11 +346,10 @@ export class XPProgressManager {
     }
   }
 
-  // Send beacon save for page unload
+  // Send beacon save for page unload (more reliable for page close scenarios)
   private sendBeaconSave(): void {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
       
       const updateData = {
         current_level: this.currentProgress.current_level,
@@ -352,15 +361,24 @@ export class XPProgressManager {
         updated_at: new Date().toISOString()
       };
 
-      
       const blob = new Blob([JSON.stringify(updateData)], { type: 'application/json' });
-      navigator.sendBeacon(`${supabaseUrl}/rest/v1/user_xp_progress?user_id=eq.${this.user.uid}`, blob);
+      const sent = navigator.sendBeacon(
+        `${supabaseUrl}/rest/v1/user_xp_progress?user_id=eq.${this.user.uid}`, 
+        blob
+      );
+      
+      if (sent) {
+        console.log('Beacon save sent successfully');
+        this.pendingXPGains = []; // Clear pending gains if beacon was sent
+      } else {
+        console.warn('Beacon save failed to send');
+      }
     } catch (error) {
       console.error('Failed to send beacon save:', error);
     }
   }
 
-  // Manual save trigger
+  // Manual save trigger (call this before sign out)
   public async forceSave(): Promise<void> {
     return this.savePendingXP();
   }
@@ -378,19 +396,22 @@ export class XPProgressManager {
   // Set online status
   public setOnlineStatus(isOnline: boolean): void {
     this.isOnline = isOnline;
-    if (isOnline && this.pendingXPGains.length > 0) {
-      this.savePendingXP().catch(console.error);
+    // Don't automatically save when coming online - let the app decide when to save
+  }
+
+  // Call this method before user signs out to ensure all data is saved
+  public async prepareForSignOut(): Promise<void> {
+    if (this.hasUnsavedChanges()) {
+      console.log('Saving XP progress before sign out...');
+      await this.forceSave();
     }
   }
 
   // Cleanup method
   public destroy(): void {
-    if (this.saveInterval) {
-      clearInterval(this.saveInterval);
-      this.saveInterval = null;
-    }
+    this.isDestroyed = true;
     
-    // Final save
+    // Final save attempt
     if (this.pendingXPGains.length > 0) {
       this.savePendingXP().catch(console.error);
     }
