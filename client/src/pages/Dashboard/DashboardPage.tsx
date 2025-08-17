@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useXP } from '../../hooks/contexts/XPContext';
+
 import { 
     getAuth, 
     onAuthStateChanged,
@@ -116,6 +118,7 @@ export default function Dashboard() {
     const [showPracticeSession, setShowPracticeSession] = useState(false);
     
     // XP and Progress related state
+    
     const [xpProgress, setXpProgress] = useState<XPProgress | null>(null);
     const [xpManager, setXpManager] = useState<XPProgressManager | null>(null);
     const [xpLoading, setXpLoading] = useState(true);
