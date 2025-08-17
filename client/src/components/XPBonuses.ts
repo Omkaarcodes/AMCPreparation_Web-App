@@ -400,12 +400,19 @@ export class XPProgressManager {
   }
 
   // Call this method before user signs out to ensure all data is saved
-  public async prepareForSignOut(): Promise<void> {
+ public async prepareForSignOut(): Promise<void> {
     if (this.hasUnsavedChanges()) {
-      console.log('Saving XP progress before sign out...');
-      await this.forceSave();
+        console.log('Saving XP progress before sign out...');
+        try {
+            await this.forceSave();
+            console.log('XP progress saved successfully before sign out');
+        } catch (error) {
+            console.error('Failed to save XP before sign out:', error);
+            // Try beacon save as fallback
+            this.sendBeaconSave();
+        }
     }
-  }
+}
 
   // Cleanup method
   public destroy(): void {

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { User } from 'firebase/auth';
 import { XPProgressManager, XPProgress } from '../../components/XPBonuses';
 
-
 interface XPContextType {
   xpManager: XPProgressManager | null;
   xpProgress: XPProgress | null;
@@ -10,17 +9,20 @@ interface XPContextType {
   unsavedXP: number;
   isOnline: boolean;
   // Helper methods
-  awardXP: (action: string, customAmount?: number, customMessage?: string) => void;
+  awardXP: (action: string, customAmount?: number, customMessage?: string) => any;
+  awardRawXP: (amount: number, customMessage?: string, actionType?: string) => any;
   getLevelProgress: () => number;
   forceSave: () => Promise<void>;
   hasUnsavedChanges: () => boolean;
+  // New method to refresh XP state
+  refreshXPState: () => void;
 }
 
 const XPContext = createContext<XPContextType | undefined>(undefined);
 
 interface XPProviderProps {
   children: ReactNode;
-  user: User | null; // Pass the current user from your auth system
+  user: User | null;
 }
 
 // XP Action Types
@@ -69,6 +71,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
         
         setXpManager(manager);
         setXpProgress(progress);
+        setUnsavedXP(manager.getPendingXP());
         xpManagerRef.current = manager;
         
         // Award daily login bonus if it's a new day
@@ -117,15 +120,46 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     };
   }, [xpManager]);
 
-  // Update unsaved XP periodically
+  // Update unsaved XP periodically and refresh state
   useEffect(() => {
     const interval = setInterval(() => {
       if (xpManager) {
-        setUnsavedXP(xpManager.getPendingXP());
+        const currentUnsaved = xpManager.getPendingXP();
+        const currentProgress = xpManager.getCurrentProgress();
+        
+        setUnsavedXP(currentUnsaved);
+        setXpProgress(currentProgress);
       }
-    }, 5000);
+    }, 2000); // Check every 2 seconds
 
     return () => clearInterval(interval);
+  }, [xpManager]);
+
+  // Auto-save when unsaved XP reaches certain thresholds
+  useEffect(() => {
+    if (xpManager && unsavedXP > 0) {
+      // Auto-save when unsaved XP exceeds 100 or every 50 XP
+      if (unsavedXP >= 100 || (unsavedXP % 50 === 0 && unsavedXP > 0)) {
+        console.log(`Auto-saving XP: ${unsavedXP} pending`);
+        xpManager.savePendingXP().catch(console.error);
+      }
+    }
+  }, [unsavedXP, xpManager]);
+
+  // Save before page unload
+  useEffect(() => {
+    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+      if (xpManager && xpManager.hasUnsavedChanges()) {
+        try {
+          await xpManager.prepareForSignOut();
+        } catch (error) {
+          console.error('Failed to save XP before unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [xpManager]);
 
   // Award daily login bonus
@@ -145,24 +179,34 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
         setTimeout(() => {
           manager.addXP(XP_ACTIONS.STREAK_BONUS.amount, 'streak_bonus');
           setXpProgress(manager.getCurrentProgress());
+          setUnsavedXP(manager.getPendingXP());
         }, 1500);
       }
       
       setXpProgress(manager.getCurrentProgress());
+      setUnsavedXP(manager.getPendingXP());
     }
   };
 
-  // Public method to award XP
+  // Refresh XP state - call this when external components modify XP
+  const refreshXPState = () => {
+    if (xpManager) {
+      setXpProgress(xpManager.getCurrentProgress());
+      setUnsavedXP(xpManager.getPendingXP());
+    }
+  };
+
+  // Public method to award XP with predefined actions
   const awardXP = (action: string, customAmount?: number, customMessage?: string) => {
     if (!xpManager) {
       console.warn('XP Manager not available');
-      return;
+      return null;
     }
     
     const xpData = XP_ACTIONS[action as keyof typeof XP_ACTIONS];
     if (!xpData) {
       console.warn(`Unknown XP action: ${action}`);
-      return;
+      return null;
     }
     
     const amount = customAmount ?? xpData.amount;
@@ -172,8 +216,31 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     setXpProgress(xpManager.getCurrentProgress());
     setUnsavedXP(xpManager.getPendingXP());
     
-    // You can emit events here for notifications if needed
+    // Log for debugging
     console.log(`Awarded ${amount} XP for ${message}`, result);
+    
+    return result;
+  };
+
+  // NEW: Public method to award raw XP amount (for custom components)
+  const awardRawXP = (amount: number, customMessage?: string, actionType: string = 'custom_action') => {
+    if (!xpManager) {
+      console.warn('XP Manager not available');
+      return null;
+    }
+    
+    if (amount <= 0) {
+      console.warn('XP amount must be positive');
+      return null;
+    }
+    
+    const result = xpManager.addXP(amount, actionType);
+    setXpProgress(xpManager.getCurrentProgress());
+    setUnsavedXP(xpManager.getPendingXP());
+    
+    // Log for debugging
+    const message = customMessage || `Earned ${amount} XP!`;
+    console.log(`Awarded ${amount} raw XP: ${message}`, result);
     
     return result;
   };
@@ -188,6 +255,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     if (xpManager) {
       await xpManager.forceSave();
       setUnsavedXP(0);
+      setXpProgress(xpManager.getCurrentProgress());
     }
   };
 
@@ -203,9 +271,11 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     unsavedXP,
     isOnline,
     awardXP,
+    awardRawXP,
     getLevelProgress,
     forceSave,
-    hasUnsavedChanges
+    hasUnsavedChanges,
+    refreshXPState
   };
 
   return (

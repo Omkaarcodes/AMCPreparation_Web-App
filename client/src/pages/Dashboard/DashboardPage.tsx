@@ -26,26 +26,15 @@ import {
 } from "../../components/ui/card";
 import { 
     Activity, 
-    CreditCard, 
-    DollarSign, 
-    Users, 
-    TrendingUp, 
     Calendar,
     Bell,
     Search,
     ArrowUpRight,
-    ArrowDownRight,
     BarChart3,
     Sparkles,
     Home,
     Settings,
-    FileText,
     Star,
-    History,
-    Briefcase,
-    MoreHorizontal,
-    ChevronRight,
-    ChevronDown,
     BookOpen,
     Brain,
     Clock,
@@ -54,7 +43,6 @@ import {
     RotateCcw,
     Flame,
     Trophy,
-    Swords,
     Database,
     List,
     Bookmark,
@@ -64,13 +52,13 @@ import {
     Loader2,
     Zap,
     Award,
-    TrendingUpIcon,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    ChevronRight,
+    ChevronDown
 } from "lucide-react";
 
 import ProblemsSolvedWidget from './Problem_Explorer'
-import { XPProgressManager, XPProgress } from '../../components/XPBonuses';
 
 // Add Problem interface
 interface Problem {
@@ -96,18 +84,6 @@ interface UserProfile {
     last_seen?: string;
 }
 
-// XP Action Types for different activities
-const XP_ACTIONS = {
-    PROBLEM_SOLVED_EASY: { amount: 10, message: "Easy problem solved!" },
-    PROBLEM_SOLVED_MEDIUM: { amount: 20, message: "Medium problem solved!" },
-    PROBLEM_SOLVED_HARD: { amount: 35, message: "Hard problem solved!" },
-    QUIZ_COMPLETED: { amount: 50, message: "Quiz completed!" },
-    DAILY_LOGIN: { amount: 5, message: "Daily login bonus!" },
-    STREAK_BONUS: { amount: 10, message: "Streak bonus!" },
-    FIRST_TRY_CORRECT: { amount: 5, message: "First try bonus!" },
-    TOPIC_MASTERY: { amount: 100, message: "Topic mastered!" }
-};
-
 export default function Dashboard() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
@@ -117,19 +93,13 @@ export default function Dashboard() {
     const [practiceProblems, setPracticeProblems] = useState<Problem[]>([]);
     const [showPracticeSession, setShowPracticeSession] = useState(false);
     
-    // XP and Progress related state
-    
-    const [xpProgress, setXpProgress] = useState<XPProgress | null>(null);
-    const [xpManager, setXpManager] = useState<XPProgressManager | null>(null);
-    const [xpLoading, setXpLoading] = useState(true);
+    // XP Notification state
     const [showXPNotification, setShowXPNotification] = useState(false);
     const [xpNotificationData, setXpNotificationData] = useState<{
         amount: number;
         message: string;
         levelUp?: { oldLevel: number; newLevel: number };
     } | null>(null);
-    const [unsavedXP, setUnsavedXP] = useState(0);
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
     
     const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
@@ -138,7 +108,46 @@ export default function Dashboard() {
     
     const auth = getAuth();
     const navigate = useNavigate();
-    const xpManagerRef = useRef<XPProgressManager | null>(null);
+
+    // Use the XP Context
+    const { 
+        xpManager, 
+        xpProgress, 
+        xpLoading, 
+        unsavedXP, 
+        isOnline, 
+        awardXP, 
+        getLevelProgress, 
+        forceSave, 
+        hasUnsavedChanges 
+    } = useXP();
+
+    // Custom method to award raw XP amount (for your component needs)
+    const awardRawXP = useCallback((amount: number, customMessage?: string) => {
+        if (!xpManager) {
+            console.warn('XP Manager not available');
+            return;
+        }
+        
+        const result = xpManager.addXP(amount, 'custom_action');
+        const message = customMessage || `Earned ${amount} XP!`;
+        
+        // Show notification
+        setXpNotificationData({
+            amount,
+            message,
+            levelUp: result?.leveledUp ? { oldLevel: result.oldLevel!, newLevel: result.newLevel! } : undefined
+        });
+        setShowXPNotification(true);
+        
+        // Auto hide notification
+        setTimeout(() => {
+            setShowXPNotification(false);
+            setXpNotificationData(null);
+        }, result?.leveledUp ? 5000 : 3000);
+        
+        return result;
+    }, [xpManager]);
 
     const sidebarItems = [
         {
@@ -242,118 +251,6 @@ export default function Dashboard() {
         }
     ];
 
-    // Initialize XP Manager when user is available
-    const initializeXPManager = useCallback(async (currentUser: User) => {
-        try {
-            const manager = new XPProgressManager(currentUser);
-            const progress = await manager.loadProgress();
-            
-            setXpManager(manager);
-            setXpProgress(progress);
-            xpManagerRef.current = manager;
-            
-            // Award daily login bonus if it's a new day
-            awardDailyLoginBonus(manager, progress);
-            
-            setXpLoading(false);
-        } catch (error) {
-            console.error('Failed to initialize XP manager:', error);
-            setXpLoading(false);
-        }
-    }, []);
-
-    // Award daily login bonus
-    const awardDailyLoginBonus = (manager: XPProgressManager, progress: XPProgress) => {
-        const today = new Date();
-        const lastXPDate = progress.last_xp_earned ? new Date(progress.last_xp_earned) : null;
-        
-        if (!lastXPDate || lastXPDate.toDateString() !== today.toDateString()) {
-            const result = manager.addXP(XP_ACTIONS.DAILY_LOGIN.amount, 'daily_login');
-            showXPGain(XP_ACTIONS.DAILY_LOGIN.amount, XP_ACTIONS.DAILY_LOGIN.message, result);
-            
-            // Update streak
-            manager.updateStreak(true);
-            
-            // Check for streak bonus
-            const currentProgress = manager.getCurrentProgress();
-            if (currentProgress.streak_days > 1 && currentProgress.streak_days % 7 === 0) {
-                const streakResult = manager.addXP(XP_ACTIONS.STREAK_BONUS.amount, 'streak_bonus');
-                setTimeout(() => {
-                    showXPGain(XP_ACTIONS.STREAK_BONUS.amount, `${currentProgress.streak_days} day streak bonus!`, streakResult);
-                }, 1500);
-            }
-            
-            setXpProgress(manager.getCurrentProgress());
-        }
-    };
-
-    // Show XP gain notification
-    const showXPGain = (amount: number, message: string, result?: { leveledUp: boolean; newLevel?: number; oldLevel?: number }) => {
-        setXpNotificationData({
-            amount,
-            message,
-            levelUp: result?.leveledUp ? { oldLevel: result.oldLevel!, newLevel: result.newLevel! } : undefined
-        });
-        setShowXPNotification(true);
-        
-        // Auto hide notification
-        setTimeout(() => {
-            setShowXPNotification(false);
-            setXpNotificationData(null);
-        }, result?.leveledUp ? 5000 : 3000);
-    };
-
-    // Public method to award XP (can be called from other components)
-    const awardXP = useCallback((action: keyof typeof XP_ACTIONS, customAmount?: number, customMessage?: string) => {
-        if (!xpManager) return;
-        
-        const xpData = XP_ACTIONS[action];
-        const amount = customAmount ?? xpData.amount;
-        const message = customMessage ?? xpData.message;
-        
-        const result = xpManager.addXP(amount, action);
-        showXPGain(amount, message, result);
-        
-        setXpProgress(xpManager.getCurrentProgress());
-        setUnsavedXP(xpManager.getPendingXP());
-    }, [xpManager]);
-
-    // Set up online/offline listeners
-    useEffect(() => {
-        const handleOnline = () => {
-            setIsOnline(true);
-            if (xpManager) {
-                xpManager.setOnlineStatus(true);
-            }
-        };
-
-        const handleOffline = () => {
-            setIsOnline(false);
-            if (xpManager) {
-                xpManager.setOnlineStatus(false);
-            }
-        };
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, [xpManager]);
-
-    // Update unsaved XP periodically
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (xpManager) {
-                setUnsavedXP(xpManager.getPendingXP());
-            }
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [xpManager]);
-
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
@@ -363,24 +260,14 @@ export default function Dashboard() {
                 navigate('/login');
             } else {
                 setNewDisplayName(currentUser.displayName || '');
-                initializeXPManager(currentUser);
             }
         });
 
         return () => unsubscribe();
-    }, [auth, navigate, initializeXPManager]);
+    }, [auth, navigate]);
 
     useEffect(() => {
         setMounted(true);
-    }, []);
-
-    // Cleanup XP manager on unmount
-    useEffect(() => {
-        return () => {
-            if (xpManagerRef.current) {
-                xpManagerRef.current.destroy();
-            }
-        };
     }, []);
 
     const globalStyles = `
@@ -410,16 +297,24 @@ export default function Dashboard() {
     };
 
     const handleLogout = async () => {
+    try {
+        if (hasUnsavedChanges() && xpManager) {
+            console.log('Saving pending XP before logout...');
+            await xpManager.prepareForSignOut();
+        }
+        await signOut(auth);
+        navigate('/');
+    } catch (error) {
+        console.error('Error signing out:', error);
+        // Still attempt to sign out even if XP save fails
         try {
-            if (xpManager) {
-                await xpManager.forceSave();
-            }
             await signOut(auth);
             navigate('/');
-        } catch (error) {
-            console.error('Error signing out:', error);
+        } catch (signOutError) {
+            console.error('Failed to sign out:', signOutError);
         }
-    };
+    }
+};
 
     // Existing functions for display name management...
     const getSupabaseToken = async (): Promise<string> => {
@@ -623,14 +518,15 @@ export default function Dashboard() {
         navigate(url);
     };
 
-    // Demo function to test XP system
-    const testXPGain = () => {
-        awardXP('PROBLEM_SOLVED_MEDIUM');
-    };
-
-    // Get level progress percentage
-    const getLevelProgress = () => {
-        return xpManager ? xpManager.getLevelProgress() : 0;
+    // Custom XP award function with notification
+    const handleAwardXP = (action: string, customAmount?: number, customMessage?: string) => {
+        const result = awardXP(action, customAmount, customMessage);
+        
+        // Show notification for predefined actions
+        if (result) {
+            // The XPContext already handles the XP update, we just need to show notification
+            // You might want to emit events from XPContext instead of handling notifications here
+        }
     };
 
     const stats = [
@@ -712,7 +608,7 @@ export default function Dashboard() {
         }
     ];
 
-    if (loading) {
+    if (loading || xpLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-900">
                 <div className="flex flex-col items-center space-y-4">
@@ -931,14 +827,23 @@ export default function Dashboard() {
                                     <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full animate-pulse"></span>
                                 </button>
 
-                                {/* Test XP Button - Remove in production
+                                {/* Test XP Button - Example usage */}
                                 <button 
-                                    onClick={testXPGain}
+                                    onClick={() => awardXP('PROBLEM_SOLVED_MEDIUM')}
                                     className="px-3 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30 transition-colors"
-                                    title="Test XP Gain"
+                                    title="Test Predefined XP"
                                 >
-                                    +XP
-                                </button> */}
+                                    +XP (Medium)
+                                </button>
+                                
+                                {/* Test Raw XP Button - Example for your custom component */}
+                                <button 
+                                    onClick={() => awardRawXP(25, "Custom bonus!")}
+                                    className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded text-xs hover:bg-purple-500/30 transition-colors"
+                                    title="Test Raw XP"
+                                >
+                                    +25 XP
+                                </button>
                             </div>
                         </div>
                     </header>
@@ -1142,7 +1047,7 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                             <p className="text-xs text-slate-400">
-                                                {xpManager ? (xpManager as any).getXPForLevel(xpProgress.current_level) - xpProgress.xp_towards_next : 0} XP needed for Level {xpProgress.current_level + 1}
+                                                {xpManager ? (xpManager as any).getXPForLevel?.(xpProgress.current_level + 1) - xpProgress.xp_towards_next || 0 : 0} XP needed for Level {xpProgress.current_level + 1}
                                             </p>
                                         </div>
 
@@ -1169,10 +1074,10 @@ export default function Dashboard() {
                                                 )}
                                             </div>
                                             <button
-                                                onClick={() => awardXP('PROBLEM_SOLVED_HARD')}
+                                                onClick={() => awardXP('QUIZ_COMPLETED')}
                                                 className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all duration-200 transform hover:scale-105 font-medium text-sm"
                                             >
-                                                Start Practice Session
+                                                Start Practice Session (+50 XP)
                                             </button>
                                         </div>
                                     </div>
@@ -1290,18 +1195,19 @@ export default function Dashboard() {
                                             Sign Out
                                         </button>
                                         
-                                        {xpManager && (
+                                        {hasUnsavedChanges() && (
                                             <button
-                                                onClick={() => xpManager.forceSave()}
-                                                disabled={unsavedXP === 0}
-                                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-                                                    unsavedXP > 0 
-                                                        ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/30' 
-                                                        : 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                                                }`}
+                                                onClick={forceSave}
+                                                className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/30"
                                             >
-                                                {unsavedXP > 0 ? `Save ${unsavedXP} XP` : 'All Saved'}
+                                                Save {unsavedXP} XP
                                             </button>
+                                        )}
+                                        
+                                        {!hasUnsavedChanges() && (
+                                            <div className="px-4 py-2 bg-slate-700 text-slate-400 rounded-lg text-sm font-medium">
+                                                All Saved
+                                            </div>
                                         )}
                                     </div>
 
@@ -1380,10 +1286,10 @@ export default function Dashboard() {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => awardXP('QUIZ_COMPLETED')}
+                                        onClick={() => awardRawXP(100, "Practice session completed!")}
                                         className="mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 transform hover:scale-105 font-medium"
                                     >
-                                        Complete Practice (+50 XP)
+                                        Complete Practice (+100 XP)
                                     </button>
                                 </div>
                             </div>

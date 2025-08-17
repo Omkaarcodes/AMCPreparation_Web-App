@@ -9,8 +9,10 @@ import { XPProgressManager } from '../../components/XPBonuses';
 import { useLevelUpNotification, LevelUpNotification } from '../../components/notifications/LevelUp';
 
 
+
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
+import { useXP } from '../../hooks/contexts/XPContext';
 
 interface Problem {
     unique_problem_id: string;
@@ -133,6 +135,7 @@ export default function ProblemsSolvedWidget({
 }: ProblemsSolvedWidgetProps) {
 
     const { notification, showLevelUp, hideLevelUp } = useLevelUpNotification();
+    const { refreshXPState } = useXP();
 
     const [filters, setFilters] = useState<ProblemFilters>({
         topic: '',
@@ -406,6 +409,9 @@ export default function ProblemsSolvedWidget({
         try {
             const result = xpManager.addXP(amount, source);
             
+            // Refresh the XP context state immediately
+            refreshXPState();
+            
             if (result.leveledUp && result.oldLevel && result.newLevel) {
                 showLevelUp(result.oldLevel, result.newLevel);
                 console.log(`🎉 Level up! From ${result.oldLevel} to ${result.newLevel}`);
@@ -416,7 +422,7 @@ export default function ProblemsSolvedWidget({
             console.error('Error adding XP:', error);
             return { leveledUp: false };
         }
-};
+    };
 
     const handleSubmitAnswer = () => {
         const problem = getCurrentProblem();
@@ -431,11 +437,10 @@ export default function ProblemsSolvedWidget({
         
         if (isCorrect) {
             const baseDifficulty = parseInt(problem.difficulty) || 5;
-            const baseXP = baseDifficulty * 2; // 2 XP per difficulty point
-            const timeBonus = Math.max(0, Math.floor((180 - timeSpent) / 10)); // Bonus for speed
+            const baseXP = baseDifficulty * 2;
+            const timeBonus = Math.max(0, Math.floor((180 - timeSpent) / 10));
             xpGained = baseXP + timeBonus;
             
-            // Add XP to the manager with descriptive source
             const source = `${problem.topic} Problem (Level ${problem.difficulty})`;
             levelUpResult = addXPToManager(xpGained, source);
         }
@@ -452,9 +457,7 @@ export default function ProblemsSolvedWidget({
             }
         }));
         
-        // Optional: Show level up notification
-        if (levelUpResult.leveledUp) {
-        }
+        
         
         setIsActive(false);
     };
@@ -476,7 +479,6 @@ export default function ProblemsSolvedWidget({
             const timeBonus = Math.max(0, Math.floor((180 - timeSpent) / 10));
             xpGained = baseXP + timeBonus;
             
-            // Add XP to the manager with descriptive source
             const source = `${problem.topic} Problem (Level ${problem.difficulty})`;
             levelUpResult = addXPToManager(xpGained, source);
         }
@@ -494,12 +496,27 @@ export default function ProblemsSolvedWidget({
             }
         }));
         
-        // Optional: Show level up notification
-        if (levelUpResult.leveledUp) {
-        }
+        
         
         setIsActive(false);
     };
+
+    useEffect(() => {
+        if (showReview) {
+            // Auto-save when review is shown (session completed)
+            const saveSessionXP = async () => {
+                try {
+                    await xpManager.savePendingXP();
+                    refreshXPState();
+                    console.log('Session XP saved successfully');
+                } catch (error) {
+                    console.error('Failed to save session XP:', error);
+                }
+            };
+            
+            saveSessionXP();
+        }
+    }, [showReview, xpManager, refreshXPState]);
 
     // Toggle hint
     const toggleHint = () => {
