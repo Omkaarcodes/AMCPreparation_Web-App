@@ -1,4 +1,4 @@
-// XPProgressManager.ts
+//Timeline
 import { User } from 'firebase/auth';
 
 export interface XPProgress {
@@ -48,35 +48,7 @@ export class XPProgressManager {
     };
   }
 
-  private setupPageUnloadListeners(): void {
-    // Save when tab becomes hidden (user switches tabs/minimizes)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && this.pendingXPGains.length > 0) {
-        this.savePendingXP().catch(console.error);
-      }
-    });
-
-    // Save before page unload (refresh, navigation, close)
-    window.addEventListener('beforeunload', (event) => {
-      if (this.pendingXPGains.length > 0) {
-        // Use sendBeacon for reliable saving before page unload
-        this.sendBeaconSave();
-        
-        // Optional: Show warning if there are unsaved changes
-        // Uncomment if you want to warn users about unsaved progress
-        // event.preventDefault();
-        // event.returnValue = 'You have unsaved progress. Are you sure you want to leave?';
-        // return event.returnValue;
-      }
-    });
-
-    // Save when user navigates using browser back/forward buttons
-    window.addEventListener('popstate', () => {
-      if (this.pendingXPGains.length > 0) {
-        this.savePendingXP().catch(console.error);
-      }
-    });
-  }
+  
 
   // Calculate XP needed for a specific level
   private getXPForLevel(level: number): number {
@@ -135,6 +107,10 @@ export class XPProgressManager {
       newLevel: leveledUp ? this.currentProgress.current_level : undefined,
       oldLevel: leveledUp ? oldLevel : undefined
     };
+  }
+
+  public addRawXP(amount: number): { leveledUp: boolean; newLevel?: number; oldLevel?: number } {
+    return this.addXP(amount, "custom_XP_assignment");
   }
 
   // Get current progress (always returns latest local state)
@@ -295,8 +271,7 @@ export class XPProgressManager {
     }
   }
 
-  // Save pending XP gains to database
-  public async savePendingXP(): Promise<void> {
+   public async savePendingXP(): Promise<void> {
     if (this.pendingXPGains.length === 0 || !this.isOnline || this.isDestroyed) {
       return;
     }
@@ -306,13 +281,21 @@ export class XPProgressManager {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+      // Helper function to safely convert to ISO string
+      const toISOString = (date: Date | string | null | undefined): string | null => {
+        if (!date) return null;
+        if (typeof date === 'string') return date; // Already a string
+        if (date instanceof Date) return date.toISOString();
+        return null;
+      };
+
       const updateData = {
         current_level: this.currentProgress.current_level,
         total_xp: this.currentProgress.total_xp,
         xp_towards_next: this.currentProgress.xp_towards_next,
         daily_xp_earned: this.currentProgress.daily_xp_earned,
         streak_days: this.currentProgress.streak_days,
-        last_xp_earned: this.currentProgress.last_xp_earned?.toISOString(),
+        last_xp_earned: toISOString(this.currentProgress.last_xp_earned),
         updated_at: new Date().toISOString()
       };
 
@@ -346,37 +329,137 @@ export class XPProgressManager {
     }
   }
 
-  // Send beacon save for page unload (more reliable for page close scenarios)
-  private sendBeaconSave(): void {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      
-      const updateData = {
-        current_level: this.currentProgress.current_level,
-        total_xp: this.currentProgress.total_xp,
-        xp_towards_next: this.currentProgress.xp_towards_next,
-        daily_xp_earned: this.currentProgress.daily_xp_earned,
-        streak_days: this.currentProgress.streak_days,
-        last_xp_earned: this.currentProgress.last_xp_earned?.toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const blob = new Blob([JSON.stringify(updateData)], { type: 'application/json' });
-      const sent = navigator.sendBeacon(
-        `${supabaseUrl}/rest/v1/user_xp_progress?user_id=eq.${this.user.uid}`, 
-        blob
-      );
-      
-      if (sent) {
-        console.log('Beacon save sent successfully');
-        this.pendingXPGains = []; // Clear pending gains if beacon was sent
-      } else {
-        console.warn('Beacon save failed to send');
-      }
-    } catch (error) {
-      console.error('Failed to send beacon save:', error);
-    }
+public async sendBeaconSave(): Promise<void> {
+  if (this.pendingXPGains.length === 0) {
+    return;
   }
+
+  try {
+    // Get the token first (this might not work during page unload)
+    const token = await this.getSupabaseToken();
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+    // Helper function to safely convert to ISO string
+    const toISOString = (date: Date | string | null | undefined): string | null => {
+      if (!date) return null;
+      if (typeof date === 'string') return date; // Already a string
+      if (date instanceof Date) return date.toISOString();
+      return null;
+    };
+
+    const updateData = {
+      current_level: this.currentProgress.current_level,
+      total_xp: this.currentProgress.total_xp,
+      xp_towards_next: this.currentProgress.xp_towards_next,
+      daily_xp_earned: this.currentProgress.daily_xp_earned,
+      streak_days: this.currentProgress.streak_days,
+      last_xp_earned: toISOString(this.currentProgress.last_xp_earned),
+      updated_at: new Date().toISOString()
+    };
+
+    // Create a FormData object that includes the auth headers as part of the URL
+    const url = new URL(`${supabaseUrl}/rest/v1/user_xp_progress`);
+    url.searchParams.set('user_id', `eq.${this.user.uid}`);
+    
+    
+    const response = await fetch(url.toString(), {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': anonKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(updateData),
+      keepalive: true 
+    });
+
+    if (response.ok) {
+      console.log('Emergency save completed successfully');
+      this.pendingXPGains = [];
+    } else {
+      console.warn('Emergency save failed:', response.status);
+    }
+  } catch (error) {
+    console.error('Failed to perform emergency save:', error);
+  }
+}
+
+// Alternative approach: Store data in localStorage as a fallback
+public emergencyLocalSave(): void {
+  try {
+    const emergencyData = {
+      userId: this.user.uid,
+      progress: this.currentProgress,
+      pendingGains: this.pendingXPGains,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem('emergency_xp_data', JSON.stringify(emergencyData));
+    console.log('🔄 Emergency XP data saved to localStorage');
+  } catch (error) {
+    console.error('Failed to save emergency data to localStorage:', error);
+  }
+}
+// Method to recover from localStorage on app startup
+public static async recoverEmergencyData(user: User): Promise<any> {
+  try {
+    const emergencyData = localStorage.getItem('emergency_xp_data');
+    if (!emergencyData) return null;
+    
+    const data = JSON.parse(emergencyData);
+    
+    // Check if data belongs to current user and is recent (within last 2 hours)
+    if (data.userId === user.uid && (Date.now() - data.timestamp) < 7200000) { // 2 hours
+      localStorage.removeItem('emergency_xp_data'); // Clean up after recovery
+      console.log('🎉 Emergency XP data recovered from localStorage');
+      return data;
+    }
+    
+    // Clean up old or invalid data
+    if (data.userId === user.uid || (Date.now() - data.timestamp) > 86400000) { // 24 hours
+      localStorage.removeItem('emergency_xp_data');
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Failed to recover emergency data:', error);
+    // Clean up corrupted data
+    localStorage.removeItem('emergency_xp_data');
+    return null;
+  }
+}
+
+private setupPageUnloadListeners(): void {
+  // Save when tab becomes hidden (user switches tabs/minimizes)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && this.pendingXPGains.length > 0) {
+      this.savePendingXP().catch(() => {
+        // Fallback to localStorage if network save fails
+        this.emergencyLocalSave();
+      });
+    }
+  });
+
+  // Save before page unload (refresh, navigation, close)
+  window.addEventListener('beforeunload', (event) => {
+    if (this.pendingXPGains.length > 0) {
+      // Just save to localStorage - it's synchronous and reliable
+      this.emergencyLocalSave();
+    }
+  });
+
+  // Save when user navigates using browser back/forward buttons
+  window.addEventListener('popstate', () => {
+    if (this.pendingXPGains.length > 0) {
+      this.savePendingXP().catch(() => {
+        this.emergencyLocalSave();
+      });
+    }
+  });
+}
+
 
   // Manual save trigger (call this before sign out)
   public async forceSave(): Promise<void> {
@@ -399,6 +482,19 @@ export class XPProgressManager {
     // Don't automatically save when coming online - let the app decide when to save
   }
 
+  public setPendingGains(gains: XPGain[]): void {
+    if (this.isDestroyed) {
+      console.warn('Cannot set pending gains on destroyed XPProgressManager');
+      return;
+    }
+    
+    // Directly set the pending gains without re-applying them
+    // This is used during emergency recovery to restore the unsaved state
+    this.pendingXPGains = [...gains];
+    
+    console.log(`Set ${gains.length} pending XP gains for recovery`);
+  }
+
   // Call this method before user signs out to ensure all data is saved
  public async prepareForSignOut(): Promise<void> {
     if (this.hasUnsavedChanges()) {
@@ -408,10 +504,23 @@ export class XPProgressManager {
             console.log('XP progress saved successfully before sign out');
         } catch (error) {
             console.error('Failed to save XP before sign out:', error);
-            // Try beacon save as fallback
-            this.sendBeaconSave();
+            // Try localStorage save as fallback
+            this.emergencyLocalSave();
         }
     }
+}
+
+public manualEmergencySave(): void {
+  this.emergencyLocalSave();
+}
+
+public static clearEmergencyData(): void {
+  try {
+    localStorage.removeItem('emergency_xp_data');
+    console.log('🧹 Emergency XP data cleared');
+  } catch (error) {
+    console.error('Failed to clear emergency data:', error);
+  }
 }
 
   // Cleanup method

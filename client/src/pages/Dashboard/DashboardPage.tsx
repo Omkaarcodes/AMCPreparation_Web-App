@@ -838,7 +838,7 @@ export default function Dashboard() {
                                 
                                 {/* Test Raw XP Button - Example for your custom component */}
                                 <button 
-                                    onClick={() => awardRawXP(25, "Custom bonus!")}
+                                    onClick={() => awardRawXP(25, 'Test Raw XP')}
                                     className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded text-xs hover:bg-purple-500/30 transition-colors"
                                     title="Test Raw XP"
                                 >

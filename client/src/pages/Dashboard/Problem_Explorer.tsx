@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Target, Filter, Play, ChevronDown, Loader2, Check, XCircle, Clock, Lightbulb, Trophy, RotateCcw, ArrowRight, Zap, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -136,6 +136,8 @@ export default function ProblemsSolvedWidget({
 
     const { notification, showLevelUp, hideLevelUp } = useLevelUpNotification();
     const { refreshXPState } = useXP();
+    const [sessionXPSaved, setSessionXPSaved] = useState(false);
+    const savingInProgressRef = useRef(false);
 
     const [filters, setFilters] = useState<ProblemFilters>({
         topic: '',
@@ -502,21 +504,38 @@ export default function ProblemsSolvedWidget({
     };
 
     useEffect(() => {
-        if (showReview) {
-            // Auto-save when review is shown (session completed)
-            const saveSessionXP = async () => {
-                try {
-                    await xpManager.savePendingXP();
-                    refreshXPState();
-                    console.log('Session XP saved successfully');
-                } catch (error) {
-                    console.error('Failed to save session XP:', error);
-                }
-            };
+    if (showReview && !sessionXPSaved && !savingInProgressRef.current) {
+        // Auto-save when review is shown (session completed) - but only once
+        const saveSessionXP = async () => {
+            if (savingInProgressRef.current) {
+                console.log('Save already in progress, skipping...');
+                return;
+            }
             
-            saveSessionXP();
+            savingInProgressRef.current = true;
+            try {
+                console.log('Starting session XP save...');
+                // await xpManager.savePendingXP(); -->Use this line of code if you want extra security for saving XP after problem session.
+                refreshXPState();
+                setSessionXPSaved(true);
+                console.log('✅ Session XP saved successfully');
+            } catch (error) {
+                console.error('❌ Failed to save session XP:', error);
+            } finally {
+                savingInProgressRef.current = false;
+            }
+        };
+        
+        saveSessionXP();
+    }
+}, [showReview, sessionXPSaved, xpManager]); // Removed refreshXPState from dependencies
+
+    useEffect(() => {
+        if (showProblems && !showReview) {
+            setSessionXPSaved(false);
+            savingInProgressRef.current = false;
         }
-    }, [showReview, xpManager, refreshXPState]);
+    }, [showProblems, showReview]);
 
     // Toggle hint
     const toggleHint = () => {
