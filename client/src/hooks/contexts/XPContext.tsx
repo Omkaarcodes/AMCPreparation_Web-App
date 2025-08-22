@@ -8,7 +8,7 @@ interface XPContextType {
   xpLoading: boolean;
   unsavedXP: number;
   isOnline: boolean;
-  emergencyRecovered: boolean; // New: indicates if data was recovered from emergency save
+  emergencyRecovered: boolean;
   // Helper methods
   awardXP: (action: string, customAmount?: number, customMessage?: string) => any;
   awardRawXP: (amount: number, customMessage?: string, actionType?: string) => any;
@@ -47,53 +47,80 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
   const [unsavedXP, setUnsavedXP] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [emergencyRecovered, setEmergencyRecovered] = useState(false);
+  const [dailyBonusAwarded, setDailyBonusAwarded] = useState(false);
+  const [initializationComplete, setInitializationComplete] = useState(false);
   
   const xpManagerRef = useRef<XPProgressManager | null>(null);
+  const initializationRef = useRef<boolean>(false);
+  const userIdRef = useRef<string | null>(null);
 
   // Initialize XP Manager when user changes
   useEffect(() => {
     const initializeXPManager = async () => {
-      if (!user) {
-        setXpManager(null);
-        setXpProgress(null);
-        setXpLoading(false);
-        setEmergencyRecovered(false);
+      const currentUserId = user?.uid || null;
+      
+      // Only reinitialize if user actually changed
+      if (currentUserId === userIdRef.current && initializationRef.current) {
         return;
       }
 
-      setXpLoading(true);
-      try {
-        // Clean up previous manager if it exists
-        if (xpManagerRef.current) {
-          xpManagerRef.current.destroy();
-        }
+      // Clean up previous state
+      if (xpManagerRef.current) {
+        await xpManagerRef.current.prepareForSignOut();
+        xpManagerRef.current.destroy();
+        xpManagerRef.current = null;
+      }
 
-        // NEW: Check for emergency recovery data first
+      // Reset all state
+      setXpManager(null);
+      setXpProgress(null);
+      setEmergencyRecovered(false);
+      setDailyBonusAwarded(false);
+      setInitializationComplete(false);
+      initializationRef.current = false;
+      userIdRef.current = currentUserId;
+
+      if (!user) {
+        setXpLoading(false);
+        return;
+      }
+
+      // Prevent double initialization
+      if (initializationRef.current) {
+        return;
+      }
+      initializationRef.current = true;
+
+      setXpLoading(true);
+      
+      try {
+        console.log('🚀 Initializing XP Manager for user:', user.uid);
+
+        // Check for emergency recovery data first
         const emergencyData = await XPProgressManager.recoverEmergencyData(user);
         let recoveredFromEmergency = false;
-
         let manager: XPProgressManager;
         let progress: XPProgress;
 
         if (emergencyData) {
           console.log('🔄 Recovering XP data from emergency save...');
           
-          // FIXED: Create manager with recovered progress and set pending gains directly
-          // Don't re-apply the gains since they're already in the progress
           manager = new XPProgressManager(user, emergencyData.progress);
           progress = emergencyData.progress;
           
-          // FIXED: Set the pending gains directly instead of re-applying them
-          // This maintains the unsaved state without duplicating XP
           if (emergencyData.pendingGains && emergencyData.pendingGains.length > 0) {
-            console.log(`Restoring ${emergencyData.pendingGains.length} pending XP gains without re-applying...`);
-            // Set the pending gains directly in the manager
             manager.setPendingGains(emergencyData.pendingGains);
+            console.log(`Restored ${emergencyData.pendingGains.length} pending XP gains`);
+          }
+
+          if (emergencyData.needsDailyResetSave) {
+            manager.setNeedsDailyResetSave(true);
           }
           
           recoveredFromEmergency = true;
+          setEmergencyRecovered(true);
           
-          // Try to save the recovered data immediately to the database
+          // Try to save the recovered data immediately
           try {
             await manager.forceSave();
             console.log('✅ Emergency data successfully saved to database');
@@ -107,25 +134,50 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
           progress = await manager.loadProgress();
         }
         
+        // Check and handle daily reset - only once per session
+        const dailyResetOccurred = manager.checkAndResetDailyProgress();
+        
+        if (dailyResetOccurred) {
+          console.log('📅 Daily reset occurred during initialization');
+          progress = manager.getCurrentProgress();
+        }
+        
+        // Set up the manager and progress
         setXpManager(manager);
         setXpProgress(progress);
         setUnsavedXP(manager.getPendingXP());
-        setEmergencyRecovered(recoveredFromEmergency);
         xpManagerRef.current = manager;
         
-        // Award daily login bonus if it's a new day (only if not recovered from emergency)
+        // Award daily login bonus only if:
+        // 1. Not recovered from emergency (to avoid double bonuses)
+        // 2. Daily reset occurred OR it's first login of the day
         if (!recoveredFromEmergency) {
-          awardDailyLoginBonus(manager, progress);
+          const shouldAwardBonus = dailyResetOccurred || 
+            progress.daily_xp_earned === 0 || 
+            !progress.last_xp_earned ||
+            !manager.isSameDay(new Date(progress.last_xp_earned), new Date());
+
+          if (shouldAwardBonus) {
+            // Delay bonus award to ensure state is stable
+            setTimeout(() => {
+              awardDailyLoginBonus(manager);
+            }, 1000);
+          }
         }
+        
+        setInitializationComplete(true);
         
         if (recoveredFromEmergency) {
           console.log('🎉 Successfully recovered unsaved XP progress!');
-          // You might want to show a toast notification here
         }
         
+        console.log('✅ XP Manager initialization complete');
+        
       } catch (error) {
-        console.error('Failed to initialize XP manager:', error);
+        console.error('❌ Failed to initialize XP manager:', error);
         setEmergencyRecovered(false);
+        setInitializationComplete(false);
+        initializationRef.current = false;
       } finally {
         setXpLoading(false);
       }
@@ -135,16 +187,25 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
 
     // Cleanup on unmount or user change
     return () => {
-      if (xpManagerRef.current) {
-        xpManagerRef.current.destroy();
-        xpManagerRef.current = null;
+      // Don't cleanup if user hasn't actually changed
+      if (user?.uid === userIdRef.current) {
+        return;
       }
+      
+      if (xpManagerRef.current) {
+        xpManagerRef.current.prepareForSignOut().finally(() => {
+          xpManagerRef.current?.destroy();
+          xpManagerRef.current = null;
+        });
+      }
+      initializationRef.current = false;
     };
-  }, [user]);
+  }, [user?.uid]); // Only depend on user ID
 
   // Set up online/offline listeners
   useEffect(() => {
     const handleOnline = () => {
+      console.log('📡 Connection restored');
       setIsOnline(true);
       if (xpManager) {
         xpManager.setOnlineStatus(true);
@@ -152,12 +213,18 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
         // If we have unsaved changes and just came online, try to save
         if (xpManager.hasUnsavedChanges()) {
           console.log('📡 Back online - attempting to save pending XP...');
-          xpManager.savePendingXP().catch(console.error);
+          xpManager.savePendingXP()
+            .then(() => {
+              console.log('✅ Successfully saved pending XP after reconnection');
+              setUnsavedXP(xpManager.getPendingXP());
+            })
+            .catch(console.error);
         }
       }
     };
 
     const handleOffline = () => {
+      console.log('📡 Connection lost');
       setIsOnline(false);
       if (xpManager) {
         xpManager.setOnlineStatus(false);
@@ -173,90 +240,156 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     };
   }, [xpManager]);
 
-  // Update unsaved XP periodically and refresh state
+  // Update unsaved XP and progress state periodically
   useEffect(() => {
+    if (!xpManager || !initializationComplete) {
+      return;
+    }
+
     const interval = setInterval(() => {
-      if (xpManager) {
-        const currentUnsaved = xpManager.getPendingXP();
-        const currentProgress = xpManager.getCurrentProgress();
-        
-        setUnsavedXP(currentUnsaved);
-        setXpProgress(currentProgress);
-      }
+      const currentUnsaved = xpManager.getPendingXP();
+      const currentProgress = xpManager.getCurrentProgress();
+      
+      setUnsavedXP(currentUnsaved);
+      setXpProgress(currentProgress);
     }, 2000); // Check every 2 seconds
 
     return () => clearInterval(interval);
-  }, [xpManager]);
+  }, [xpManager, initializationComplete]);
 
   // Auto-save when unsaved XP reaches certain thresholds (only when online)
   useEffect(() => {
-    if (xpManager && unsavedXP > 0 && isOnline) {
-      // Auto-save when unsaved XP exceeds 100 or every 50 XP
-      if (unsavedXP >= 100 || (unsavedXP % 50 === 0 && unsavedXP > 0)) {
-        console.log(`💾 Auto-saving XP: ${unsavedXP} pending`);
-        xpManager.savePendingXP()
-          .then(() => {
-            console.log('✅ Auto-save successful');
-            setUnsavedXP(xpManager.getPendingXP());
-          })
-          .catch((error) => {
-            console.error('❌ Auto-save failed:', error);
-          });
-      }
+    if (!xpManager || !isOnline || unsavedXP === 0) {
+      return;
+    }
+
+    // Auto-save when unsaved XP exceeds 100 points
+    if (unsavedXP >= 100) {
+      console.log(`💾 Auto-saving XP: ${unsavedXP} pending`);
+      xpManager.savePendingXP()
+        .then(() => {
+          console.log('✅ Auto-save successful');
+          setUnsavedXP(xpManager.getPendingXP());
+        })
+        .catch((error) => {
+          console.error('❌ Auto-save failed:', error);
+        });
     }
   }, [unsavedXP, xpManager, isOnline]);
 
-  // Save before page unload - Simplified to just use localStorage
+  // Handle page unload events
   useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       if (xpManager && xpManager.hasUnsavedChanges()) {
-        // Synchronous localStorage save - much more reliable during page unload
+        console.log('💾 Page unloading - emergency save to localStorage');
         xpManager.emergencyLocalSave();
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && xpManager && xpManager.hasUnsavedChanges()) {
+        console.log('👁️ Tab hidden - attempting to save XP');
+        xpManager.savePendingXP().catch(() => {
+          console.log('💾 Save failed - falling back to localStorage');
+          xpManager.emergencyLocalSave();
+        });
+      }
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [xpManager]);
 
-  // Award daily login bonus
-  const awardDailyLoginBonus = (manager: XPProgressManager, progress: XPProgress) => {
+  // Reset daily bonus flag at midnight
+  useEffect(() => {
+    const checkMidnight = () => {
+      const now = new Date();
+      // Reset daily bonus flag at midnight
+      if (now.getHours() === 0 && now.getMinutes() === 0 && dailyBonusAwarded) {
+        console.log('🕛 Midnight - resetting daily bonus flag');
+        setDailyBonusAwarded(false);
+        
+        // Also reset the daily processed flag in the manager
+        if (xpManager) {
+          xpManager.resetDailyProcessedFlag();
+        }
+      }
+    };
+
+    const interval = setInterval(checkMidnight, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [dailyBonusAwarded, xpManager]);
+
+  // Award daily login bonus function
+  const awardDailyLoginBonus = useCallback((manager: XPProgressManager) => {
+    if (dailyBonusAwarded) {
+      console.log('📅 Daily bonus already awarded in this session');
+      return;
+    }
+
+    const currentProgress = manager.getCurrentProgress();
     const today = new Date();
-    const lastXPDate = progress.last_xp_earned ? new Date(progress.last_xp_earned) : null;
+    const lastXPDate = currentProgress.last_xp_earned ? new Date(currentProgress.last_xp_earned) : null;
     
-    if (!lastXPDate || lastXPDate.toDateString() !== today.toDateString()) {
+    // Check if eligible for daily bonus
+    const shouldAwardBonus = 
+      !lastXPDate || 
+      !manager.isSameDay(lastXPDate, today) || 
+      currentProgress.daily_xp_earned === 0;
+    
+    if (shouldAwardBonus) {
+      console.log('🎁 Awarding daily login bonus');
+      
+      // Award daily login bonus
       const result = manager.addXP(XP_ACTIONS.DAILY_LOGIN.amount, 'daily_login');
       
       // Update streak
-      manager.updateStreak(true);
+      manager.updateStreak();
       
-      // Check for streak bonus
-      const currentProgress = manager.getCurrentProgress();
-      if (currentProgress.streak_days > 1 && currentProgress.streak_days % 7 === 0) {
+      // Get updated progress after streak calculation
+      const updatedProgress = manager.getCurrentProgress();
+      
+      // Check for streak bonus (every 7 days)
+      if (updatedProgress.streak_days > 1 && updatedProgress.streak_days % 7 === 0) {
+        console.log(`🔥 Awarding 7-day streak bonus! Streak: ${updatedProgress.streak_days} days`);
         setTimeout(() => {
-          manager.addXP(XP_ACTIONS.STREAK_BONUS.amount, 'streak_bonus');
-          setXpProgress(manager.getCurrentProgress());
-          setUnsavedXP(manager.getPendingXP());
+          if (manager && !manager.isDestroyed) {
+            manager.addXP(XP_ACTIONS.STREAK_BONUS.amount, 'streak_bonus');
+            setXpProgress(manager.getCurrentProgress());
+            setUnsavedXP(manager.getPendingXP());
+          }
         }, 1500);
       }
       
+      // Update state
       setXpProgress(manager.getCurrentProgress());
       setUnsavedXP(manager.getPendingXP());
+      setDailyBonusAwarded(true);
+      
+      console.log('✅ Daily login bonus awarded successfully');
+    } else {
+      console.log('📅 Daily bonus not eligible - already earned XP today');
+      setDailyBonusAwarded(true); // Prevent further attempts
     }
-  };
+  }, [dailyBonusAwarded]);
 
   // Refresh XP state - call this when external components modify XP
   const refreshXPState = useCallback(() => {
-  if (xpManager) {
-    setXpProgress(xpManager.getCurrentProgress());
-    setUnsavedXP(xpManager.getPendingXP());
-  }
-}, [xpManager]);
+    if (xpManager) {
+      setXpProgress(xpManager.getCurrentProgress());
+      setUnsavedXP(xpManager.getPendingXP());
+    }
+  }, [xpManager]);
 
   // Public method to award XP with predefined actions
-  const awardXP = (action: string, customAmount?: number, customMessage?: string) => {
-    if (!xpManager) {
-      console.warn('XP Manager not available');
+  const awardXP = useCallback((action: string, customAmount?: number, customMessage?: string) => {
+    if (!xpManager || !initializationComplete) {
+      console.warn('XP Manager not available or not initialized');
       return null;
     }
     
@@ -270,19 +403,21 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     const message = customMessage ?? xpData.message;
     
     const result = xpManager.addXP(amount, action);
+    
+    // Update state immediately for UI responsiveness
     setXpProgress(xpManager.getCurrentProgress());
     setUnsavedXP(xpManager.getPendingXP());
     
     // Log for debugging
-    console.log(`Awarded ${amount} XP for ${message}`, result);
+    console.log(`🎯 Awarded ${amount} XP for ${message}`, result);
     
     return result;
-  };
+  }, [xpManager, initializationComplete]);
 
-  // Public method to award raw XP amount (for custom components)
-  const awardRawXP = (amount: number, customMessage?: string, actionType: string = 'custom_action') => {
-    if (!xpManager) {
-      console.warn('XP Manager not available');
+  // Public method to award raw XP amount
+  const awardRawXP = useCallback((amount: number, customMessage?: string, actionType: string = 'custom_action') => {
+    if (!xpManager || !initializationComplete) {
+      console.warn('XP Manager not available or not initialized');
       return null;
     }
     
@@ -292,34 +427,36 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     }
     
     const result = xpManager.addXP(amount, actionType);
+    
+    // Update state immediately
     setXpProgress(xpManager.getCurrentProgress());
     setUnsavedXP(xpManager.getPendingXP());
     
     // Log for debugging
     const message = customMessage || `Earned ${amount} XP!`;
-    console.log(`Awarded ${amount} raw XP: ${message}`, result);
+    console.log(`🎯 Awarded ${amount} raw XP: ${message}`, result);
     
     return result;
-  };
+  }, [xpManager, initializationComplete]);
 
   // Get level progress percentage
-  const getLevelProgress = () => {
+  const getLevelProgress = useCallback(() => {
     return xpManager ? xpManager.getLevelProgress() : 0;
-  };
+  }, [xpManager]);
 
   // Force save
-  const forceSave = async () => {
+  const forceSave = useCallback(async () => {
     if (xpManager) {
       await xpManager.forceSave();
       setUnsavedXP(0);
       setXpProgress(xpManager.getCurrentProgress());
     }
-  };
+  }, [xpManager]);
 
   // Check for unsaved changes
-  const hasUnsavedChanges = () => {
+  const hasUnsavedChanges = useCallback(() => {
     return xpManager ? xpManager.hasUnsavedChanges() : false;
-  };
+  }, [xpManager]);
 
   const contextValue: XPContextType = {
     xpManager,
@@ -327,7 +464,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     xpLoading,
     unsavedXP,
     isOnline,
-    emergencyRecovered, // NEW: expose this to components
+    emergencyRecovered,
     awardXP,
     awardRawXP,
     getLevelProgress,
