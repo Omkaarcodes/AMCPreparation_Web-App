@@ -9,6 +9,7 @@ export interface XPProgress {
   last_xp_earned?: Date;
   daily_xp_earned: number;
   streak_days: number;
+  last_daily_reset?: Date;
   updated_at?: Date;
 }
 
@@ -24,12 +25,14 @@ export class XPProgressManager {
   private pendingXPGains: XPGain[] = [];
   private lastSaveTime: Date = new Date();
   private isOnline: boolean = true;
-  private isDestroyed: boolean = false;
+  public isDestroyed: boolean = false;
+  private needsDailyResetSave: boolean = false;
+  private dailyResetProcessed: boolean = false;
 
   // XP Constants
   private static readonly BASE_XP_PER_LEVEL = 100;
   private static readonly XP_MULTIPLIER = 1.2;
-  private static readonly MAX_PENDING_GAINS = 100; // Increased since we're not auto-saving
+  private static readonly MAX_PENDING_GAINS = 100;
 
   constructor(user: User, initialProgress?: XPProgress) {
     this.user = user;
@@ -38,17 +41,38 @@ export class XPProgressManager {
   }
 
   private getDefaultProgress(): XPProgress {
+    const now = new Date();
     return {
       user_id: this.user.uid,
       current_level: 1,
       total_xp: 0,
       xp_towards_next: 0,
       daily_xp_earned: 0,
-      streak_days: 0
+      streak_days: 0,
+      last_daily_reset: this.getStartOfDay(now)
     };
   }
 
-  
+  // Helper method to get start of day for consistent date comparisons
+  private getStartOfDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  // Helper method to safely parse dates
+  private parseDate(dateInput: Date | string | null | undefined): Date | null {
+    if (!dateInput) return null;
+    
+    if (typeof dateInput === 'string') {
+      const parsed = new Date(dateInput);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+    
+    if (dateInput instanceof Date) {
+      return isNaN(dateInput.getTime()) ? null : dateInput;
+    }
+    
+    return null;
+  }
 
   // Calculate XP needed for a specific level
   private getXPForLevel(level: number): number {
@@ -64,6 +88,47 @@ export class XPProgressManager {
     return totalXP;
   }
 
+  // Improved daily reset logic
+  public checkAndResetDailyProgress(): boolean {
+    if (this.dailyResetProcessed) {
+      return false; // Already processed for this session
+    }
+
+    const today = this.getStartOfDay(new Date());
+    const lastReset = this.parseDate(this.currentProgress.last_daily_reset);
+    const lastResetStart = lastReset ? this.getStartOfDay(lastReset) : null;
+
+    // Only reset if it's truly a different day
+    const shouldReset = !lastResetStart || today.getTime() !== lastResetStart.getTime();
+    
+    if (shouldReset) {
+      const previousDailyXP = this.currentProgress.daily_xp_earned;
+      
+      console.log('🔄 Resetting daily XP for new day', {
+        today: today.toDateString(),
+        lastReset: lastResetStart?.toDateString() || 'never',
+        previousDailyXP
+      });
+      
+      this.currentProgress.daily_xp_earned = 0;
+      this.currentProgress.last_daily_reset = today;
+      this.needsDailyResetSave = true;
+      this.dailyResetProcessed = true;
+      
+      return true;
+    }
+    
+    this.dailyResetProcessed = true;
+    return false;
+  }
+
+  // Check if two dates are the same day
+  public isSameDay(date1: Date, date2: Date): boolean {
+    const day1 = this.getStartOfDay(date1);
+    const day2 = this.getStartOfDay(date2);
+    return day1.getTime() === day2.getTime();
+  }
+
   // Add XP and handle level ups
   public addXP(amount: number, source: string): { leveledUp: boolean; newLevel?: number; oldLevel?: number } {
     if (this.isDestroyed) {
@@ -71,32 +136,39 @@ export class XPProgressManager {
       return { leveledUp: false };
     }
 
+    if (amount <= 0) {
+      console.warn('XP amount must be positive');
+      return { leveledUp: false };
+    }
+
     const oldLevel = this.currentProgress.current_level;
+    const now = new Date();
+    
+    // Update streak BEFORE updating last_xp_earned
+    this.updateStreak(now);
     
     // Add to pending gains
     this.pendingXPGains.push({
       amount,
       source,
-      timestamp: new Date()
+      timestamp: now
     });
 
     // Update local progress immediately for UI responsiveness
     this.currentProgress.total_xp += amount;
     this.currentProgress.xp_towards_next += amount;
     this.currentProgress.daily_xp_earned += amount;
-    this.currentProgress.last_xp_earned = new Date();
+    this.currentProgress.last_xp_earned = now;
 
     // Check for level up
-    const xpNeededForCurrentLevel = this.getXPForLevel(this.currentProgress.current_level);
     let leveledUp = false;
-
-    while (this.currentProgress.xp_towards_next >= xpNeededForCurrentLevel) {
-      this.currentProgress.xp_towards_next -= xpNeededForCurrentLevel;
+    while (this.currentProgress.xp_towards_next >= this.getXPForLevel(this.currentProgress.current_level)) {
+      this.currentProgress.xp_towards_next -= this.getXPForLevel(this.currentProgress.current_level);
       this.currentProgress.current_level++;
       leveledUp = true;
     }
 
-    // Only save if we've reached the maximum pending gains limit (safety measure)
+    // Force save if we've reached the maximum pending gains limit
     if (this.pendingXPGains.length >= XPProgressManager.MAX_PENDING_GAINS) {
       console.warn('Maximum pending gains reached, forcing save to prevent data loss');
       this.savePendingXP().catch(console.error);
@@ -121,45 +193,47 @@ export class XPProgressManager {
   // Get progress percentage for current level
   public getLevelProgress(): number {
     const xpNeeded = this.getXPForLevel(this.currentProgress.current_level);
-    return (this.currentProgress.xp_towards_next / xpNeeded) * 100;
+    return xpNeeded > 0 ? (this.currentProgress.xp_towards_next / xpNeeded) * 100 : 0;
   }
 
-  // Update streak (should be called daily)
-  public updateStreak(practiced: boolean): void {
-    const today = new Date();
-    const lastPractice = this.currentProgress.last_xp_earned;
+  // Fixed streak update logic
+  public updateStreak(earnedToday: Date = new Date()): void {
+    const today = this.getStartOfDay(earnedToday);
+    const lastXPDate = this.parseDate(this.currentProgress.last_xp_earned);
     
-    if (!lastPractice) {
-      this.currentProgress.streak_days = practiced ? 1 : 0;
+    if (!lastXPDate) {
+      // First time earning XP ever
+      this.currentProgress.streak_days = 1;
+      console.log('🔥 Starting new streak: 1 day');
       return;
     }
 
-    const daysSinceLastPractice = Math.floor(
-      (today.getTime() - lastPractice.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (practiced) {
-      if (daysSinceLastPractice <= 1) {
-        if (daysSinceLastPractice === 1) {
-          this.currentProgress.streak_days++;
-        }
-        // If daysSinceLastPractice === 0, keep same streak (practiced same day)
-      } else {
-        // Streak broken
+    const lastXPStart = this.getStartOfDay(lastXPDate);
+    const daysDiff = Math.floor((today.getTime() - lastXPStart.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff === 0) {
+      // Same day - no change to streak, but ensure we have at least 1 day
+      if (this.currentProgress.streak_days === 0) {
         this.currentProgress.streak_days = 1;
+        console.log('🔥 Fixed zero streak - set to 1 day (same day XP)');
+      } else {
+        console.log('🔥 Same day XP - streak maintained:', this.currentProgress.streak_days);
       }
-    } else if (daysSinceLastPractice > 1) {
-      // Streak broken due to inactivity
-      this.currentProgress.streak_days = 0;
+    } else if (daysDiff === 1) {
+      // Consecutive day - increment streak
+      this.currentProgress.streak_days += 1;
+      console.log('🔥 Streak continued:', this.currentProgress.streak_days, 'days');
+    } else if (daysDiff > 1) {
+      // Gap in days - reset streak to 1 (starting fresh today)
+      this.currentProgress.streak_days = 1;
+      console.log('🔥 Streak reset to 1 day due to', daysDiff, 'day gap');
+    } else {
+      // This shouldn't happen (daysDiff < 0), but handle it gracefully
+      console.warn('🔥 Unexpected day difference:', daysDiff, '- maintaining current streak');
     }
   }
 
-  // Reset daily XP (should be called at midnight)
-  public resetDailyXP(): void {
-    this.currentProgress.daily_xp_earned = 0;
-  }
-
-  // Get Supabase token using existing method pattern
+  // Get Supabase token
   private async getSupabaseToken(): Promise<string> {
     console.log('Getting Firebase ID token...');
     const idToken = await this.user.getIdToken(true);
@@ -212,12 +286,16 @@ export class XPProgressManager {
       
       if (data.length > 0) {
         const progress = data[0];
-        // Convert timestamps
-        if (progress.last_xp_earned) {
-          progress.last_xp_earned = new Date(progress.last_xp_earned);
-        }
-        if (progress.updated_at) {
-          progress.updated_at = new Date(progress.updated_at);
+        
+        // Convert timestamps safely
+        progress.last_xp_earned = this.parseDate(progress.last_xp_earned);
+        progress.last_daily_reset = this.parseDate(progress.last_daily_reset);
+        progress.updated_at = this.parseDate(progress.updated_at);
+        
+        // Ensure last_daily_reset exists and is valid
+        if (!progress.last_daily_reset) {
+          progress.last_daily_reset = this.getStartOfDay(new Date());
+          this.needsDailyResetSave = true;
         }
         
         this.currentProgress = progress;
@@ -240,6 +318,9 @@ export class XPProgressManager {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+      const now = new Date();
+      const startOfToday = this.getStartOfDay(now);
+      
       const response = await fetch(`${supabaseUrl}/rest/v1/user_xp_progress`, {
         method: 'POST',
         headers: {
@@ -256,7 +337,8 @@ export class XPProgressManager {
           daily_xp_earned: 0,
           streak_days: 0,
           last_xp_earned: null,
-          updated_at: new Date().toISOString()
+          last_daily_reset: startOfToday.toISOString(),
+          updated_at: now.toISOString()
         })
       });
 
@@ -271,8 +353,14 @@ export class XPProgressManager {
     }
   }
 
-   public async savePendingXP(): Promise<void> {
-    if (this.pendingXPGains.length === 0 || !this.isOnline || this.isDestroyed) {
+  // Save pending XP with improved logic
+  public async savePendingXP(): Promise<void> {
+    if (this.pendingXPGains.length === 0 && !this.needsDailyResetSave) {
+      return;
+    }
+
+    if (!this.isOnline || this.isDestroyed) {
+      console.warn('Cannot save - offline or destroyed');
       return;
     }
 
@@ -284,8 +372,8 @@ export class XPProgressManager {
       // Helper function to safely convert to ISO string
       const toISOString = (date: Date | string | null | undefined): string | null => {
         if (!date) return null;
-        if (typeof date === 'string') return date; // Already a string
-        if (date instanceof Date) return date.toISOString();
+        if (typeof date === 'string') return date;
+        if (date instanceof Date && !isNaN(date.getTime())) return date.toISOString();
         return null;
       };
 
@@ -296,6 +384,7 @@ export class XPProgressManager {
         daily_xp_earned: this.currentProgress.daily_xp_earned,
         streak_days: this.currentProgress.streak_days,
         last_xp_earned: toISOString(this.currentProgress.last_xp_earned),
+        last_daily_reset: toISOString(this.currentProgress.last_daily_reset),
         updated_at: new Date().toISOString()
       };
 
@@ -317,169 +406,132 @@ export class XPProgressManager {
         throw new Error(`Failed to save progress: ${response.status}`);
       }
 
-      // Clear pending gains after successful save
+      // Clear pending changes after successful save
       this.pendingXPGains = [];
+      this.needsDailyResetSave = false;
       this.lastSaveTime = new Date();
       
       console.log('Saved XP progress to database');
     } catch (error) {
       console.error('Failed to save XP progress:', error);
-      // Keep pending gains for retry
       throw error;
     }
   }
 
-public async sendBeaconSave(): Promise<void> {
-  if (this.pendingXPGains.length === 0) {
-    return;
+  // Emergency save methods
+  public emergencyLocalSave(): void {
+    try {
+      const emergencyData = {
+        userId: this.user.uid,
+        progress: {
+          ...this.currentProgress,
+          last_xp_earned: this.currentProgress.last_xp_earned?.toISOString() || null,
+          last_daily_reset: this.currentProgress.last_daily_reset?.toISOString() || null,
+          updated_at: this.currentProgress.updated_at?.toISOString() || null
+        },
+        pendingGains: this.pendingXPGains.map(gain => ({
+          ...gain,
+          timestamp: gain.timestamp.toISOString()
+        })),
+        needsDailyResetSave: this.needsDailyResetSave,
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem('emergency_xp_data', JSON.stringify(emergencyData));
+      console.log('🔄 Emergency XP data saved to localStorage');
+    } catch (error) {
+      console.error('Failed to save emergency data to localStorage:', error);
+    }
   }
 
-  try {
-    // Get the token first (this might not work during page unload)
-    const token = await this.getSupabaseToken();
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-    // Helper function to safely convert to ISO string
-    const toISOString = (date: Date | string | null | undefined): string | null => {
-      if (!date) return null;
-      if (typeof date === 'string') return date; // Already a string
-      if (date instanceof Date) return date.toISOString();
+  // Recovery method
+  public static async recoverEmergencyData(user: User): Promise<any> {
+    try {
+      const emergencyData = localStorage.getItem('emergency_xp_data');
+      if (!emergencyData) return null;
+      
+      const data = JSON.parse(emergencyData);
+      
+      // Check if data belongs to current user and is recent (within last 2 hours)
+      if (data.userId === user.uid && (Date.now() - data.timestamp) < 7200000) {
+        localStorage.removeItem('emergency_xp_data');
+        console.log('🎉 Emergency XP data recovered from localStorage');
+        
+        // Convert date strings back to Date objects
+        if (data.progress.last_xp_earned) {
+          data.progress.last_xp_earned = new Date(data.progress.last_xp_earned);
+        }
+        if (data.progress.last_daily_reset) {
+          data.progress.last_daily_reset = new Date(data.progress.last_daily_reset);
+        }
+        if (data.progress.updated_at) {
+          data.progress.updated_at = new Date(data.progress.updated_at);
+        }
+        
+        // Convert pending gains timestamps
+        if (data.pendingGains) {
+          data.pendingGains = data.pendingGains.map((gain: any) => ({
+            ...gain,
+            timestamp: new Date(gain.timestamp)
+          }));
+        }
+        
+        return data;
+      }
+      
+      // Clean up old or invalid data
+      if (data.userId === user.uid || (Date.now() - data.timestamp) > 86400000) {
+        localStorage.removeItem('emergency_xp_data');
+      }
+      
       return null;
-    };
+    } catch (error) {
+      console.error('Failed to recover emergency data:', error);
+      localStorage.removeItem('emergency_xp_data');
+      return null;
+    }
+  }
 
-    const updateData = {
-      current_level: this.currentProgress.current_level,
-      total_xp: this.currentProgress.total_xp,
-      xp_towards_next: this.currentProgress.xp_towards_next,
-      daily_xp_earned: this.currentProgress.daily_xp_earned,
-      streak_days: this.currentProgress.streak_days,
-      last_xp_earned: toISOString(this.currentProgress.last_xp_earned),
-      updated_at: new Date().toISOString()
-    };
-
-    // Create a FormData object that includes the auth headers as part of the URL
-    const url = new URL(`${supabaseUrl}/rest/v1/user_xp_progress`);
-    url.searchParams.set('user_id', `eq.${this.user.uid}`);
-    
-    
-    const response = await fetch(url.toString(), {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'apikey': anonKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify(updateData),
-      keepalive: true 
+  // Setup page unload listeners
+  private setupPageUnloadListeners(): void {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && (this.pendingXPGains.length > 0 || this.needsDailyResetSave)) {
+        this.savePendingXP().catch(() => {
+          this.emergencyLocalSave();
+        });
+      }
     });
 
-    if (response.ok) {
-      console.log('Emergency save completed successfully');
-      this.pendingXPGains = [];
-    } else {
-      console.warn('Emergency save failed:', response.status);
-    }
-  } catch (error) {
-    console.error('Failed to perform emergency save:', error);
-  }
-}
-
-// Alternative approach: Store data in localStorage as a fallback
-public emergencyLocalSave(): void {
-  try {
-    const emergencyData = {
-      userId: this.user.uid,
-      progress: this.currentProgress,
-      pendingGains: this.pendingXPGains,
-      timestamp: Date.now()
-    };
-    
-    localStorage.setItem('emergency_xp_data', JSON.stringify(emergencyData));
-    console.log('🔄 Emergency XP data saved to localStorage');
-  } catch (error) {
-    console.error('Failed to save emergency data to localStorage:', error);
-  }
-}
-// Method to recover from localStorage on app startup
-public static async recoverEmergencyData(user: User): Promise<any> {
-  try {
-    const emergencyData = localStorage.getItem('emergency_xp_data');
-    if (!emergencyData) return null;
-    
-    const data = JSON.parse(emergencyData);
-    
-    // Check if data belongs to current user and is recent (within last 2 hours)
-    if (data.userId === user.uid && (Date.now() - data.timestamp) < 7200000) { // 2 hours
-      localStorage.removeItem('emergency_xp_data'); // Clean up after recovery
-      console.log('🎉 Emergency XP data recovered from localStorage');
-      return data;
-    }
-    
-    // Clean up old or invalid data
-    if (data.userId === user.uid || (Date.now() - data.timestamp) > 86400000) { // 24 hours
-      localStorage.removeItem('emergency_xp_data');
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Failed to recover emergency data:', error);
-    // Clean up corrupted data
-    localStorage.removeItem('emergency_xp_data');
-    return null;
-  }
-}
-
-private setupPageUnloadListeners(): void {
-  // Save when tab becomes hidden (user switches tabs/minimizes)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && this.pendingXPGains.length > 0) {
-      this.savePendingXP().catch(() => {
-        // Fallback to localStorage if network save fails
+    window.addEventListener('beforeunload', () => {
+      if (this.pendingXPGains.length > 0 || this.needsDailyResetSave) {
         this.emergencyLocalSave();
-      });
-    }
-  });
+      }
+    });
 
-  // Save before page unload (refresh, navigation, close)
-  window.addEventListener('beforeunload', (event) => {
-    if (this.pendingXPGains.length > 0) {
-      // Just save to localStorage - it's synchronous and reliable
-      this.emergencyLocalSave();
-    }
-  });
+    window.addEventListener('popstate', () => {
+      if (this.pendingXPGains.length > 0 || this.needsDailyResetSave) {
+        this.savePendingXP().catch(() => {
+          this.emergencyLocalSave();
+        });
+      }
+    });
+  }
 
-  // Save when user navigates using browser back/forward buttons
-  window.addEventListener('popstate', () => {
-    if (this.pendingXPGains.length > 0) {
-      this.savePendingXP().catch(() => {
-        this.emergencyLocalSave();
-      });
-    }
-  });
-}
-
-
-  // Manual save trigger (call this before sign out)
+  // Public utility methods
   public async forceSave(): Promise<void> {
     return this.savePendingXP();
   }
 
-  // Get pending XP amount
   public getPendingXP(): number {
     return this.pendingXPGains.reduce((total, gain) => total + gain.amount, 0);
   }
 
-  // Check if there are unsaved changes
   public hasUnsavedChanges(): boolean {
-    return this.pendingXPGains.length > 0;
+    return this.pendingXPGains.length > 0 || this.needsDailyResetSave;
   }
 
-  // Set online status
   public setOnlineStatus(isOnline: boolean): void {
     this.isOnline = isOnline;
-    // Don't automatically save when coming online - let the app decide when to save
   }
 
   public setPendingGains(gains: XPGain[]): void {
@@ -488,48 +540,49 @@ private setupPageUnloadListeners(): void {
       return;
     }
     
-    // Directly set the pending gains without re-applying them
-    // This is used during emergency recovery to restore the unsaved state
     this.pendingXPGains = [...gains];
-    
     console.log(`Set ${gains.length} pending XP gains for recovery`);
   }
 
-  // Call this method before user signs out to ensure all data is saved
- public async prepareForSignOut(): Promise<void> {
-    if (this.hasUnsavedChanges()) {
-        console.log('Saving XP progress before sign out...');
-        try {
-            await this.forceSave();
-            console.log('XP progress saved successfully before sign out');
-        } catch (error) {
-            console.error('Failed to save XP before sign out:', error);
-            // Try localStorage save as fallback
-            this.emergencyLocalSave();
-        }
-    }
-}
-
-public manualEmergencySave(): void {
-  this.emergencyLocalSave();
-}
-
-public static clearEmergencyData(): void {
-  try {
-    localStorage.removeItem('emergency_xp_data');
-    console.log('🧹 Emergency XP data cleared');
-  } catch (error) {
-    console.error('Failed to clear emergency data:', error);
+  public setNeedsDailyResetSave(needs: boolean): void {
+    this.needsDailyResetSave = needs;
   }
-}
 
-  // Cleanup method
+  public async prepareForSignOut(): Promise<void> {
+    if (this.hasUnsavedChanges()) {
+      console.log('Saving XP progress before sign out...');
+      try {
+        await this.forceSave();
+        console.log('XP progress saved successfully before sign out');
+      } catch (error) {
+        console.error('Failed to save XP before sign out:', error);
+        this.emergencyLocalSave();
+      }
+    }
+  }
+
+  public static clearEmergencyData(): void {
+    try {
+      localStorage.removeItem('emergency_xp_data');
+      console.log('🧹 Emergency XP data cleared');
+    } catch (error) {
+      console.error('Failed to clear emergency data:', error);
+    }
+  }
+
+  // Reset daily progress flag for new sessions
+  public resetDailyProcessedFlag(): void {
+    this.dailyResetProcessed = false;
+  }
+
   public destroy(): void {
     this.isDestroyed = true;
     
-    // Final save attempt
-    if (this.pendingXPGains.length > 0) {
-      this.savePendingXP().catch(console.error);
+    if (this.hasUnsavedChanges()) {
+      this.savePendingXP().catch(() => {
+        this.emergencyLocalSave();
+      });
     }
+    console.log('XP Manager for current user destroyed!');
   }
 }

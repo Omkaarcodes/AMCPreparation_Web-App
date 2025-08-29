@@ -85,10 +85,7 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
         return;
       }
 
-      // Prevent double initialization
-      if (initializationRef.current) {
-        return;
-      }
+      // Set initialization flag to prevent double initialization
       initializationRef.current = true;
 
       setXpLoading(true);
@@ -160,7 +157,10 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
           if (shouldAwardBonus) {
             // Delay bonus award to ensure state is stable
             setTimeout(() => {
-              awardDailyLoginBonus(manager);
+              // Check if manager still exists and user hasn't changed
+              if (xpManagerRef.current && userIdRef.current === user.uid) {
+                awardDailyLoginBonus(xpManagerRef.current);
+              }
             }, 1000);
           }
         }
@@ -178,6 +178,8 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
         setEmergencyRecovered(false);
         setInitializationComplete(false);
         initializationRef.current = false;
+        // Reset userIdRef on error to allow retry
+        userIdRef.current = null;
       } finally {
         setXpLoading(false);
       }
@@ -187,18 +189,18 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
 
     // Cleanup on unmount or user change
     return () => {
-      // Don't cleanup if user hasn't actually changed
-      if (user?.uid === userIdRef.current) {
-        return;
-      }
+      const currentUserId = user?.uid || null;
       
-      if (xpManagerRef.current) {
-        xpManagerRef.current.prepareForSignOut().finally(() => {
-          xpManagerRef.current?.destroy();
-          xpManagerRef.current = null;
-        });
+      // Only cleanup if user is actually changing (not just going from null to user)
+      if (currentUserId !== userIdRef.current && userIdRef.current !== null) {
+        if (xpManagerRef.current) {
+          xpManagerRef.current.prepareForSignOut().finally(() => {
+            xpManagerRef.current?.destroy();
+            xpManagerRef.current = null;
+          });
+        }
+        initializationRef.current = false;
       }
-      initializationRef.current = false;
     };
   }, [user?.uid]); // Only depend on user ID
 
@@ -393,6 +395,12 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
       return null;
     }
     
+    // Check if manager is destroyed
+    if (xpManager.isDestroyed && typeof xpManager.isDestroyed === 'function') {
+      console.warn('XP Manager has been destroyed');
+      return null;
+    }
+    
     const xpData = XP_ACTIONS[action as keyof typeof XP_ACTIONS];
     if (!xpData) {
       console.warn(`Unknown XP action: ${action}`);
@@ -402,16 +410,21 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
     const amount = customAmount ?? xpData.amount;
     const message = customMessage ?? xpData.message;
     
-    const result = xpManager.addXP(amount, action);
-    
-    // Update state immediately for UI responsiveness
-    setXpProgress(xpManager.getCurrentProgress());
-    setUnsavedXP(xpManager.getPendingXP());
-    
-    // Log for debugging
-    console.log(`🎯 Awarded ${amount} XP for ${message}`, result);
-    
-    return result;
+    try {
+      const result = xpManager.addXP(amount, action);
+      
+      // Update state immediately for UI responsiveness
+      setXpProgress(xpManager.getCurrentProgress());
+      setUnsavedXP(xpManager.getPendingXP());
+      
+      // Log for debugging
+      console.log(`🎯 Awarded ${amount} XP for ${message}`, result);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Error awarding XP:', error);
+      return null;
+    }
   }, [xpManager, initializationComplete]);
 
   // Public method to award raw XP amount
@@ -426,17 +439,28 @@ export const XPProvider: React.FC<XPProviderProps> = ({ children, user }) => {
       return null;
     }
     
-    const result = xpManager.addXP(amount, actionType);
+    // Check if manager is destroyed
+    if (xpManager.isDestroyed && typeof xpManager.isDestroyed === 'function') {
+      console.warn('XP Manager has been destroyed');
+      return null;
+    }
     
-    // Update state immediately
-    setXpProgress(xpManager.getCurrentProgress());
-    setUnsavedXP(xpManager.getPendingXP());
-    
-    // Log for debugging
-    const message = customMessage || `Earned ${amount} XP!`;
-    console.log(`🎯 Awarded ${amount} raw XP: ${message}`, result);
-    
-    return result;
+    try {
+      const result = xpManager.addXP(amount, actionType);
+      
+      // Update state immediately
+      setXpProgress(xpManager.getCurrentProgress());
+      setUnsavedXP(xpManager.getPendingXP());
+      
+      // Log for debugging
+      const message = customMessage || `Earned ${amount} XP!`;
+      console.log(`🎯 Awarded ${amount} raw XP: ${message}`, result);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Error awarding raw XP:', error);
+      return null;
+    }
   }, [xpManager, initializationComplete]);
 
   // Get level progress percentage
