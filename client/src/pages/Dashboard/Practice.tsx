@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { supabase } from '../supabase-client';
 import ErrorJournalEntry from '../../components/ErrorJournalEntry';
+import {useXP} from '../../hooks/contexts/XPContext';
 
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
@@ -20,6 +21,7 @@ interface Problem {
     question_type: string;
     topic: string;
     year: string;
+    bookmarked?: boolean;
     problem_number: string;
     dataset_origin: string;
     difficulty_1: string;
@@ -309,6 +311,19 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
     const [completedReflections, setCompletedReflections] = useState<Set<string>>(new Set());
 
     const [solutionVisibility, setSolutionVisibility] = useState<SolutionVisibility>({});
+
+    const { 
+            xpManager, 
+            xpProgress, 
+            xpLoading, 
+            unsavedXP, 
+            isOnline, 
+            awardXP, 
+            getLevelProgress, 
+            forceSave, 
+            hasUnsavedChanges 
+        } = useXP();
+    
 
     // Timer effect
     useEffect(() => {
@@ -638,6 +653,10 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             isSubmitted: true,
             showResults: true
         }));
+
+        if (awardXP) {
+        awardXP('MOCK_EXAM_COMPLETED', calculateStats().totalXP, 'Mock exam completed!');
+    }
     };
 
     const calculateStats = (): ExamStats => {
@@ -686,7 +705,7 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
         });
 
         const timeSpent = (filters.timeLimit * 60) - examState.timeRemaining;
-        
+
         return {
             totalQuestions: problems.length,
             correctAnswers,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Target, Filter, Play, ChevronDown, Loader2, Check, XCircle, Clock, Lightbulb, Trophy, RotateCcw, ArrowRight, Zap, TrendingUp } from 'lucide-react';
+import { X, Target, Filter, Play, ChevronDown, Loader2, Check, XCircle, Clock, Lightbulb, Trophy, RotateCcw, ArrowRight, Zap, TrendingUp, Bookmark, BookmarkCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -40,6 +40,7 @@ interface ProblemsSolvedWidgetProps {
     onClose: () => void;
     onStartPractice: (problems: Problem[]) => void;
     xpManager: XPProgressManager; 
+    user?: any;
 }
 
 interface ProblemState {
@@ -50,6 +51,7 @@ interface ProblemState {
     timeSpent: number;
     showHint: boolean;
     xpGained: number;
+    isBookmarked: boolean;
 }
 
 interface SessionStats {
@@ -61,6 +63,7 @@ interface SessionStats {
     totalXP: number;
     difficultyBreakdown: Record<string, { correct: number; total: number }>;
     topicBreakdown: Record<string, { correct: number; total: number }>;
+    bookmarkedProblems: string[];
 }
 
 const MathRenderer: React.FC<{ content: string; className?: string }> = ({ content, className = "" }) => {
@@ -131,7 +134,8 @@ export default function ProblemsSolvedWidget({
     isOpen, 
     onClose, 
     onStartPractice,
-    xpManager 
+    xpManager,
+    user
 }: ProblemsSolvedWidgetProps) {
 
     const { notification, showLevelUp, hideLevelUp } = useLevelUpNotification();
@@ -163,8 +167,11 @@ export default function ProblemsSolvedWidget({
     const [timeLeft, setTimeLeft] = useState(180); // 3 minutes per problem
     const [isActive, setIsActive] = useState(false);
     const [showReview, setShowReview] = useState(false);
+    const [savingBookmarks, setSavingBookmarks] = useState(false);
     
     const [problemStates, setProblemStates] = useState<Record<string, ProblemState>>({});
+
+   
 
     // Timer effect
     useEffect(() => {
@@ -200,7 +207,8 @@ export default function ProblemsSolvedWidget({
                     showSolution: false,
                     timeSpent: 0,
                     showHint: false,
-                    xpGained: 0
+                    xpGained: 0,
+                    isBookmarked: false
                 };
             });
             setProblemStates(initialStates);
@@ -221,7 +229,8 @@ export default function ProblemsSolvedWidget({
             showSolution: false,
             timeSpent: 0,
             showHint: false,
-            xpGained: 0
+            xpGained: 0,
+            isBookmarked: false
         };
         return problemStates[getCurrentProblem().unique_problem_id] || {
             userAnswer: '',
@@ -230,9 +239,155 @@ export default function ProblemsSolvedWidget({
             showSolution: false,
             timeSpent: 0,
             showHint: false,
-            xpGained: 0
+            xpGained: 0,
+            isBookmarked: false
         };
     };
+    
+    // Bookmark database functions
+    const getSupabaseToken = async (): Promise<string> => {
+        if (!user) {
+            throw new Error('No Firebase user signed in');
+        }
+
+        console.log('Getting Firebase ID token...');
+        const idToken = await user.getIdToken(true);
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        
+        console.log('Calling edge function...');
+        const response = await fetch(`${supabaseUrl}/functions/v1/session-auth`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Edge function failed: ${errorData.error}`);
+        }
+
+        const data = await response.json();
+        console.log('Got Supabase token');
+        
+        return data.access_token;
+    };
+
+    const saveBookmarksToDatabase = async (bookmarkedProblemIds: string[]): Promise<void> => {
+    if (!user || bookmarkedProblemIds.length === 0) {
+        console.log('No user or no bookmarks to save');
+        return;
+    }
+
+    setSavingBookmarks(true);
+    try {
+        console.log('Saving bookmarks to database...');
+        const token = await getSupabaseToken();
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+        // First, try to get existing bookmarks
+        const getResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data?user_id=eq.${user.uid}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': anonKey,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        let existingBookmarks: string[] = [];
+        let hasExistingRecord = false;
+
+        if (getResponse.ok) {
+            const existingData = await getResponse.json();
+            if (existingData && existingData.length > 0) {
+                hasExistingRecord = true;
+                const bookmarksText = existingData[0].problems_bookmarked;
+                if (bookmarksText) {
+                    try {
+                        // Handle different bookmark formats
+                        if (typeof bookmarksText === 'string') {
+                            // If it's a string like "[id1, id2, id3]"
+                            const cleanedText = bookmarksText.replace(/[\[\]]/g, '');
+                            if (cleanedText.trim()) {
+                                existingBookmarks = cleanedText.split(',').map(id => id.trim());
+                            }
+                        } else if (Array.isArray(bookmarksText)) {
+                            // If it's already an array
+                            existingBookmarks = bookmarksText;
+                        }
+                    } catch (parseError) {
+                        console.warn('Error parsing existing bookmarks, starting fresh:', parseError);
+                        existingBookmarks = [];
+                    }
+                }
+            }
+        } else {
+            // If the GET request failed, we'll treat it as no existing record
+            console.log('No existing bookmarks found or error fetching:', getResponse.status);
+        }
+
+        // Merge existing bookmarks with new ones (avoid duplicates)
+        const combinedBookmarks = existingBookmarks.concat(bookmarkedProblemIds);
+        const allBookmarks = Array.from(new Set(combinedBookmarks));
+        const bookmarksText = `[${allBookmarks.join(', ')}]`;
+
+        // Update or create record based on whether it exists
+        if (hasExistingRecord) {
+            // Update existing record
+            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data?user_id=eq.${user.uid}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'apikey': anonKey,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify({
+                    problems_bookmarked: bookmarksText
+                })
+            });
+
+            if (!updateResponse.ok) {
+                const errorText = await updateResponse.text();
+                throw new Error(`Bookmark update failed: HTTP ${updateResponse.status}: ${errorText}`);
+            }
+
+            console.log('Bookmarks updated successfully');
+        } else {
+            // Create new record
+            const createResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'apikey': anonKey,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify({
+                    user_id: user.uid,
+                    problems_bookmarked: bookmarksText,
+                    total_problems_solved: 0
+                })
+            });
+
+            if (!createResponse.ok) {
+                const errorText = await createResponse.text();
+                throw new Error(`Bookmark creation failed: HTTP ${createResponse.status}: ${errorText}`);
+            }
+
+            console.log('Bookmarks created successfully');
+        }
+    } catch (error) {
+        console.error('Error saving bookmarks:', error);
+        throw error;
+    } finally {
+        setSavingBookmarks(false);
+    }
+};
 
     const loadFilterOptions = async () => {
         setLoadingFilters(true);
@@ -364,6 +519,20 @@ export default function ProblemsSolvedWidget({
     const isMultipleChoice = (answer: string): boolean => {
         const trimmedAnswer = normalizeAnswer(answer);
         return ['A', 'B', 'C', 'D', 'E'].includes(trimmedAnswer);
+    };
+
+    // Handle bookmark toggle
+    const toggleBookmark = () => {
+        const problem = getCurrentProblem();
+        if (!problem) return;
+        
+        setProblemStates(prev => ({
+            ...prev,
+            [problem.unique_problem_id]: {
+                ...prev[problem.unique_problem_id],
+                isBookmarked: !prev[problem.unique_problem_id]?.isBookmarked
+            }
+        }));
     };
 
     // Handle answer input change
@@ -504,31 +673,43 @@ export default function ProblemsSolvedWidget({
     };
 
     useEffect(() => {
-    if (showReview && !sessionXPSaved && !savingInProgressRef.current) {
-        // Auto-save when review is shown (session completed) - but only once
-        const saveSessionXP = async () => {
-            if (savingInProgressRef.current) {
-                console.log('Save already in progress, skipping...');
-                return;
-            }
+        if (showReview && !sessionXPSaved && !savingInProgressRef.current) {
+            // Auto-save when review is shown (session completed) - but only once
+            const saveSessionData = async () => {
+                if (savingInProgressRef.current) {
+                    console.log('Save already in progress, skipping...');
+                    return;
+                }
+                
+                savingInProgressRef.current = true;
+                try {
+                    console.log('Starting session data save...');
+                    
+                    // Save XP
+                    refreshXPState();
+                    
+                    // Save bookmarks
+                    const bookmarkedProblemIds = Object.entries(problemStates)
+                        .filter(([_, state]) => state.isBookmarked)
+                        .map(([problemId, _]) => problemId);
+                    
+                    if (bookmarkedProblemIds.length > 0) {
+                        await saveBookmarksToDatabase(bookmarkedProblemIds);
+                        console.log(`✅ Saved ${bookmarkedProblemIds.length} bookmarks`);
+                    }
+                    
+                    setSessionXPSaved(true);
+                    console.log('✅ Session data saved successfully');
+                } catch (error) {
+                    console.error('❌ Failed to save session data:', error);
+                } finally {
+                    savingInProgressRef.current = false;
+                }
+            };
             
-            savingInProgressRef.current = true;
-            try {
-                console.log('Starting session XP save...');
-                // await xpManager.savePendingXP(); -->Use this line of code if you want extra security for saving XP after problem session.
-                refreshXPState();
-                setSessionXPSaved(true);
-                console.log('✅ Session XP saved successfully');
-            } catch (error) {
-                console.error('❌ Failed to save session XP:', error);
-            } finally {
-                savingInProgressRef.current = false;
-            }
-        };
-        
-        saveSessionXP();
-    }
-}, [showReview, sessionXPSaved, xpManager]); // Removed refreshXPState from dependencies
+            saveSessionData();
+        }
+    }, [showReview, sessionXPSaved, problemStates, user]);
 
     useEffect(() => {
         if (showProblems && !showReview) {
@@ -572,6 +753,9 @@ export default function ProblemsSolvedWidget({
         const correctAnswers = submittedStates.filter(state => state.isCorrect).length;
         const totalTimeSpent = submittedStates.reduce((sum, state) => sum + state.timeSpent, 0);
         const totalXP = submittedStates.reduce((sum, state) => sum + state.xpGained, 0);
+        const bookmarkedProblems = Object.entries(problemStates)
+            .filter(([_, state]) => state.isBookmarked)
+            .map(([problemId, _]) => problemId);
         
         const difficultyBreakdown: Record<string, { correct: number; total: number }> = {};
         const topicBreakdown: Record<string, { correct: number; total: number }> = {};
@@ -603,7 +787,8 @@ export default function ProblemsSolvedWidget({
             accuracy: submittedStates.length > 0 ? (correctAnswers / submittedStates.length) * 100 : 0,
             totalXP,
             difficultyBreakdown,
-            topicBreakdown
+            topicBreakdown,
+            bookmarkedProblems
         };
     };
 
@@ -672,6 +857,26 @@ export default function ProblemsSolvedWidget({
                                             </span>
                                         </div>
                                         <Progress value={xpManager.getLevelProgress()} className="h-3" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Bookmarks Summary */}
+                        {stats.bookmarkedProblems.length > 0 && (
+                            <Card className="bg-gradient-to-r from-orange-600/20 to-red-600/20 border-orange-600/30">
+                                <CardContent className="p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <BookmarkCheck className="h-5 w-5 text-orange-400" />
+                                            <span className="text-white font-semibold">Problems Bookmarked</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-lg font-bold text-orange-400">{stats.bookmarkedProblems.length}</div>
+                                            <div className="text-sm text-gray-400">
+                                                {savingBookmarks ? 'Saving...' : 'Saved to your collection'}
+                                            </div>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -929,8 +1134,20 @@ export default function ProblemsSolvedWidget({
                                 </div>
                             )}
 
+                            {/* Bookmark Information */}
+                            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Bookmark className="h-4 w-4 text-orange-400" />
+                                    <span className="text-xs font-medium text-orange-400">Bookmark Problems</span>
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                    Bookmark interesting or challenging problems during practice to save them for later review. 
+                                    Your bookmarks are automatically saved at the end of each session.
+                                </p>
+                            </div>
+
                             {/* Database Info */}
-                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                            {/* <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                                 <div className="flex items-center gap-2 mb-2">
                                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
                                     <span className="text-xs font-medium text-blue-400">Database Connection</span>
@@ -938,7 +1155,7 @@ export default function ProblemsSolvedWidget({
                                 <p className="text-xs text-gray-400">
                                     Connected to Problems_DataBank table with {filterOptions.topics.length} topics and {filterOptions.difficulties.length} difficulty levels available
                                 </p>
-                            </div>
+                            </div> */}
 
                             {/* Start Practice Button */}
                             <Button
@@ -1009,10 +1226,26 @@ export default function ProblemsSolvedWidget({
 
                             {/* Current Problem */}
                             <Card className="bg-gray-800 border-gray-700">
-                                <CardHeader>
-                                    <CardTitle className="text-white text-xl">
+                                <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                                    <CardTitle className="text-white text-xl flex-1">
                                         <MathRenderer content={getCurrentProblem()?.problem || ''} />
                                     </CardTitle>
+                                    <Button
+                                        onClick={toggleBookmark}
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`ml-4 flex-shrink-0 ${
+                                            getCurrentProblemState().isBookmarked
+                                                ? "text-orange-400 hover:text-orange-300"
+                                                : "text-gray-400 hover:text-orange-400"
+                                        }`}
+                                    >
+                                        {getCurrentProblemState().isBookmarked ? (
+                                            <BookmarkCheck className="h-5 w-5" />
+                                        ) : (
+                                            <Bookmark className="h-5 w-5" />
+                                        )}
+                                    </Button>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {/* Answer Options */}
@@ -1192,8 +1425,17 @@ export default function ProblemsSolvedWidget({
                                 >
                                     ← Back to Setup
                                 </Button>
-                                <div className="text-sm text-gray-400">
-                                    Progress: {Object.values(problemStates).filter(s => s.isSubmitted).length}/{problems.length} completed
+                                <div className="text-sm text-gray-400 flex items-center gap-2">
+                                    <span>Progress: {Object.values(problemStates).filter(s => s.isSubmitted).length}/{problems.length} completed</span>
+                                    {Object.values(problemStates).filter(s => s.isBookmarked).length > 0 && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1">
+                                                <Bookmark className="h-3 w-3 text-orange-400" />
+                                                {Object.values(problemStates).filter(s => s.isBookmarked).length} bookmarked
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </>
