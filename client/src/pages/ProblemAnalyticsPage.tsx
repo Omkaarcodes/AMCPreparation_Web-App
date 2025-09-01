@@ -379,6 +379,78 @@ export default function ProblemAnalyticsDashboard() {
     return [];
   };
 
+  const getSecondChartData = () => {
+  if (!stats) return [];
+
+  const topicData = Object.entries(stats.problems_by_topic);
+
+  if (secondDistributionView === 'overview') {
+    return topicData.map(([topic, data]) => ({
+      name: topic,
+      solved: data.solved,
+      accuracy: data.accuracy,
+      attempts: data.attempts
+    }));
+  } else if (secondDistributionView === 'byDifficulty') {
+    if (selectedTopic === 'all') {
+      // Show overall difficulty distribution
+      return Object.entries(stats.difficulty_stats).map(([level, data]) => ({
+        name: `Level ${level}`,
+        solved: data.solved,
+        accuracy: data.accuracy,
+        attempts: data.attempts
+      }));
+    } else {
+      // Show difficulty breakdown for selected topic
+      const topicInfo = stats.problems_by_topic[selectedTopic];
+      if (!topicInfo?.difficulty_breakdown) return [];
+      return Object.entries(topicInfo.difficulty_breakdown).map(([level, count]) => ({
+        name: `Level ${level}`,
+        solved: count,
+        accuracy: topicInfo.accuracy,
+        attempts: Math.round(count * (100 / topicInfo.accuracy))
+      }));
+    }
+  } else if (secondDistributionView === 'byTime') {
+    // Calculate actual average time per topic from timing records
+    const timingRecords = Object.values(stats.problem_timings_record || {});
+    const topicTimeMap: Record<string, { totalTime: number; count: number }> = {};
+    
+    // Calculate actual average time from timing records
+    timingRecords.forEach((record: any) => {
+      if (record.average_time_per_problem && record.total_solved > 0) {
+        topicData.forEach(([topic, data]) => {
+          if (!topicTimeMap[topic]) {
+            topicTimeMap[topic] = { totalTime: 0, count: 0 };
+          }
+          // Distribute the average time proportionally based on problems solved
+          const topicPortion = data.solved / stats.total_problems_solved;
+          topicTimeMap[topic].totalTime += record.average_time_per_problem * topicPortion;
+          topicTimeMap[topic].count += topicPortion;
+        });
+      }
+    });
+
+    return Object.entries(topicTimeMap).map(([topic, data]) => ({
+      name: topic,
+      avgTime: data.count > 0 ? Math.round(data.totalTime / data.count) : 0,
+      solved: stats.problems_by_topic[topic].solved,
+      timePerProblem: data.count > 0 ? Math.round(data.totalTime / data.count) : 0
+    }));
+  } else if (secondDistributionView === 'accuracy') {
+    return topicData
+      .map(([topic, data]) => ({
+        name: topic,
+        accuracy: data.accuracy,
+        solved: data.solved,
+        incorrect: data.attempts - data.solved
+      }))
+      .sort((a, b) => b.accuracy - a.accuracy);
+  }
+
+  return [];
+};
+
   if (loading || !stats) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900">
@@ -462,6 +534,7 @@ export default function ProblemAnalyticsDashboard() {
   ];
 
   const chartData = getDistributionChartData();
+  const secondChartData = getSecondChartData();
 
   return (
     <div className="min-h-screen bg-slate-900 p-6 space-y-6">
@@ -818,34 +891,34 @@ export default function ProblemAnalyticsDashboard() {
                       onClick={() => setIsSecondDropdownOpen(!isSecondDropdownOpen)}
                       className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:bg-slate-700 transition-colors"
                     >
-                      {distributionView === 'overview' && 'Subject Overview'}
-                      {distributionView === 'byDifficulty' && 'Difficulty Analysis'}
-                      {distributionView === 'byTime' && 'Time Analysis'}
-                      {distributionView === 'accuracy' && 'Accuracy Ranking'}
+                      {secondDistributionView === 'overview' && 'Subject Overview'}
+                      {secondDistributionView === 'byDifficulty' && 'Difficulty Analysis'}
+                      {secondDistributionView === 'byTime' && 'Time Analysis'}
+                      {secondDistributionView === 'accuracy' && 'Accuracy Ranking'}
                       <ChevronDown className="h-4 w-4" />
                     </button>
                     {isSecondDropdownOpen && (
                       <div className="absolute right-0 mt-2 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10">
                         <button
-                          onClick={() => { setDistributionView('overview'); setIsSecondDropdownOpen(false); }}
+                          onClick={() => { setSecondDistributionView('overview'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors rounded-t-lg"
                         >
                           📊 Subject Overview
                         </button>
                         <button
-                          onClick={() => { setDistributionView('byDifficulty'); setIsSecondDropdownOpen(false); }}
+                          onClick={() => { setSecondDistributionView('byDifficulty'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
                         >
                           🎯 Difficulty Analysis
                         </button>
                         <button
-                          onClick={() => { setDistributionView('byTime'); setIsSecondDropdownOpen(false); }}
+                          onClick={() => { setSecondDistributionView('byTime'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
                         >
                           ⏱️ Time Analysis
                         </button>
                         <button
-                          onClick={() => { setDistributionView('accuracy'); setIsSecondDropdownOpen(false); }}
+                          onClick={() => { setSecondDistributionView('accuracy'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors rounded-b-lg"
                         >
                           🏆 Accuracy Ranking
@@ -871,8 +944,8 @@ export default function ProblemAnalyticsDashboard() {
             <CardContent>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  {distributionView === 'overview' ? (
-                    <ComposedChart data={chartData}>
+                  {secondDistributionView === 'overview' ? (
+                    <ComposedChart data={secondChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis 
                         dataKey="name" 
@@ -895,8 +968,8 @@ export default function ProblemAnalyticsDashboard() {
                       <Bar yAxisId="left" dataKey="solved" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                       <Line yAxisId="right" type="monotone" dataKey="accuracy" stroke="#10B981" strokeWidth={3} dot={{ fill: '#10B981', r: 4 }} />
                     </ComposedChart>
-                  ) : distributionView === 'byDifficulty' ? (
-                    <ComposedChart data={chartData}>
+                  ) : secondDistributionView === 'byDifficulty' ? (
+                    <ComposedChart data={secondChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
                       <YAxis yAxisId="left" stroke="#9ca3af" fontSize={12} />
@@ -913,8 +986,8 @@ export default function ProblemAnalyticsDashboard() {
                       <Line yAxisId="right" type="monotone" dataKey="accuracy" stroke="#F59E0B" strokeWidth={3} dot={{ fill: '#F59E0B', r: 4 }} />
                       <Legend />
                     </ComposedChart>
-                  ) : distributionView === 'byTime' ? (
-                    <ComposedChart data={chartData}>
+                  ) : secondDistributionView === 'byTime' ? (
+                    <ComposedChart data={secondChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis 
                         dataKey="name" 
@@ -944,7 +1017,7 @@ export default function ProblemAnalyticsDashboard() {
                       <Line yAxisId="right" type="monotone" dataKey="avgTime" stroke="#F97316" strokeWidth={3} dot={{ fill: '#F97316', r: 4 }} />
                     </ComposedChart>
                   ) : (
-                    <ComposedChart data={chartData}>
+                    <ComposedChart data={secondChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis 
                         dataKey="name" 
@@ -972,7 +1045,7 @@ export default function ProblemAnalyticsDashboard() {
                 </ResponsiveContainer>
               </div>
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                {distributionView === 'overview' && (
+                {secondDistributionView === 'overview' && (
                   <>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-blue-500 rounded"></div>
@@ -984,7 +1057,7 @@ export default function ProblemAnalyticsDashboard() {
                     </div>
                   </>
                 )}
-                {distributionView === 'byDifficulty' && (
+                {secondDistributionView === 'byDifficulty' && (
                   <>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-purple-500 rounded"></div>
@@ -996,7 +1069,7 @@ export default function ProblemAnalyticsDashboard() {
                     </div>
                   </>
                 )}
-                {distributionView === 'byTime' && (
+                {secondDistributionView === 'byTime' && (
                   <>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-cyan-500 rounded"></div>
@@ -1008,7 +1081,7 @@ export default function ProblemAnalyticsDashboard() {
                     </div>
                   </>
                 )}
-                {distributionView === 'accuracy' && (
+                {secondDistributionView === 'accuracy' && (
                   <>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-green-500 rounded"></div>
