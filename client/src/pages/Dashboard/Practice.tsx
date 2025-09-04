@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Target, Filter, Play, ChevronDown, Loader2, Check, XCircle, Clock, Trophy, RotateCcw, ArrowRight, Zap, TrendingUp, AlertCircle, BookOpen, BookMarked } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Target, Filter, Play, ChevronDown, Loader2, Check, XCircle, Clock, Trophy, RotateCcw, ArrowRight, Zap, TrendingUp, AlertCircle, BookOpen, BookMarked, ArrowLeft, Bookmark, BookmarkCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -7,9 +7,15 @@ import { Progress } from '../../components/ui/progress';
 import { supabase } from '../supabase-client';
 import ErrorJournalEntry from '../../components/ErrorJournalEntry';
 import {useXP} from '../../hooks/contexts/XPContext';
+import {useProblemAnalytics} from "../../hooks/contexts/ProblemContext";
+import { ProblemAttempt, ProblemAnalyticsManager } from '../../components/ProblemManager';
+import { getAuth } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
+
+import { toast, Toaster } from 'sonner';
 
 interface Problem {
     unique_problem_id: string;
@@ -47,6 +53,7 @@ interface ExamState {
     timeRemaining: number;
     examStartTime: number;
     showResults: boolean;
+    bookmarkedProblems: Set<string>;
 }
 
 interface SolutionVisibility {
@@ -304,13 +311,18 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
         isSubmitted: false,
         timeRemaining: 0,
         examStartTime: 0,
-        showResults: false
+        showResults: false,
+        bookmarkedProblems: new Set()
     });
-
+    const navigate = useNavigate();
     // State for error journal entries
     const [completedReflections, setCompletedReflections] = useState<Set<string>>(new Set());
 
     const [solutionVisibility, setSolutionVisibility] = useState<SolutionVisibility>({});
+
+    const [savingBookmarks, setSavingBookmarks] = useState(false);
+    const [sessionBookmarksSaved, setSessionBookmarksSaved] = useState(false);
+    const savingBookmarksRef = useRef(false);
 
     const { 
             xpManager, 
@@ -324,7 +336,8 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             hasUnsavedChanges 
         } = useXP();
     
-
+    const { problemManager } = useProblemAnalytics();
+    
     // Timer effect
     useEffect(() => {
         let interval: NodeJS.Timeout | null = null;
@@ -364,6 +377,49 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
         };
     }, []);
 
+  
+    // Update the useEffect that handles bookmark saving (around line 212)
+
+useEffect(() => {
+    if (examState.showResults && !sessionBookmarksSaved && !savingBookmarksRef.current) {
+        const saveSessionBookmarks = async () => {
+            if (savingBookmarksRef.current) {
+                console.log('Bookmark save already in progress, skipping...');
+                return;
+            }
+            
+            savingBookmarksRef.current = true;
+            console.log('🔖 Starting bookmark save process...');
+            console.log('Bookmarked problems:', Array.from(examState.bookmarkedProblems));
+            
+            try {
+                const bookmarkedProblemIds = Array.from(examState.bookmarkedProblems);
+                
+                if (bookmarkedProblemIds.length === 0) {
+                    console.log('No bookmarks to save');
+                    setSessionBookmarksSaved(true);
+                    return;
+                }
+                
+                console.log('📤 Calling saveBookmarksToDatabase...');
+                
+                await saveBookmarksToDatabase(bookmarkedProblemIds);
+                
+            
+                console.log('✅ Bookmark save successful');
+                
+                setSessionBookmarksSaved(true);
+            } catch (error) {
+                console.error('❌ Failed to save exam bookmarks:', error);
+            } finally {
+                savingBookmarksRef.current = false;
+                console.log('🔖 Bookmark save process completed');
+            }
+        };
+        
+        saveSessionBookmarks();
+    }
+}, [examState.showResults, sessionBookmarksSaved, examState.bookmarkedProblems]);
     const loadFilterOptions = async () => {
         setLoadingFilters(true);
         try {
@@ -565,7 +621,8 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
                 isSubmitted: false,
                 timeRemaining: filters.timeLimit * 60,
                 examStartTime,
-                showResults: false
+                showResults: false,
+                bookmarkedProblems: new Set()
             });
             
             // Reset completed reflections
@@ -581,6 +638,164 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             setLoading(false);
         }
     };
+
+    // Add these functions after your existing state declarations and before the useEffect hooks
+
+    const getSupabaseToken = async (): Promise<string> => {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        
+        if (!user) {
+            throw new Error('No Firebase user signed in');
+        }
+
+        console.log('Getting Firebase ID token...');
+        const idToken = await user.getIdToken(true);
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        
+        console.log('Calling edge function...');
+        const response = await fetch(`${supabaseUrl}/functions/v1/session-auth`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Edge function failed: ${errorData.error}`);
+        }
+
+        const data = await response.json();
+        console.log('Got Supabase token');
+        
+        return data.access_token;
+    };
+
+    const saveBookmarksToDatabase = async (bookmarkedProblemIds: string[]): Promise<void> => {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        
+        if (!user || bookmarkedProblemIds.length === 0) {
+            console.log('No user or no bookmarks to save');
+            return;
+        }
+
+        setSavingBookmarks(true);
+        try {
+            console.log('Saving bookmarks to database...');
+            const token = await getSupabaseToken();
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+            // Get existing bookmarks
+            const getResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data?user_id=eq.${user.uid}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'apikey': anonKey,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            let existingBookmarks: string[] = [];
+            let hasExistingRecord = false;
+
+            if (getResponse.ok) {
+                const existingData = await getResponse.json();
+                if (existingData && existingData.length > 0) {
+                    hasExistingRecord = true;
+                    const bookmarksText = existingData[0].problems_bookmarked;
+                    if (bookmarksText) {
+                        try {
+                            if (typeof bookmarksText === 'string') {
+                                const cleanedText = bookmarksText.replace(/[\[\]]/g, '');
+                                if (cleanedText.trim()) {
+                                    existingBookmarks = cleanedText.split(',').map(id => id.trim());
+                                }
+                            } else if (Array.isArray(bookmarksText)) {
+                                existingBookmarks = bookmarksText;
+                            }
+                        } catch (parseError) {
+                            console.warn('Error parsing existing bookmarks, starting fresh:', parseError);
+                            existingBookmarks = [];
+                        }
+                    }
+                }
+            }
+
+            // Merge bookmarks
+            const combinedBookmarks = existingBookmarks.concat(bookmarkedProblemIds);
+            const allBookmarks = Array.from(new Set(combinedBookmarks));
+            const bookmarksText = `[${allBookmarks.join(', ')}]`;
+
+            // Update or create record
+            if (hasExistingRecord) {
+                const updateResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data?user_id=eq.${user.uid}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': anonKey,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        problems_bookmarked: bookmarksText
+                    })
+                });
+
+                if (!updateResponse.ok) {
+                    const errorText = await updateResponse.text();
+                    throw new Error(`Bookmark update failed: HTTP ${updateResponse.status}: ${errorText}`);
+                }
+            } else {
+                const createResponse = await fetch(`${supabaseUrl}/rest/v1/user_problem_data`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': anonKey,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        problems_bookmarked: bookmarksText,
+                        total_problems_solved: 0
+                    })
+                });
+
+                if (!createResponse.ok) {
+                    const errorText = await createResponse.text();
+                    throw new Error(`Bookmark creation failed: HTTP ${createResponse.status}: ${errorText}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error saving bookmarks:', error);
+            throw error;
+        } finally {
+            setSavingBookmarks(false);
+        }
+    };
+
+const toggleBookmark = (problemId: string) => {
+    setExamState(prev => {
+        const newBookmarks = new Set(prev.bookmarkedProblems);
+        const isAdding = !newBookmarks.has(problemId);
+        
+        if (isAdding) {
+            newBookmarks.add(problemId);
+        } else {
+            newBookmarks.delete(problemId);
+        }
+        
+        return {
+            ...prev,
+            bookmarkedProblems: newBookmarks
+        };
+    });
+};
 
     const handleStartExam = async () => {
         const loadedProblems = await loadProblems();
@@ -606,10 +821,13 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             isSubmitted: false,
             timeRemaining: 0,
             examStartTime: 0,
-            showResults: false
+            showResults: false,
+            bookmarkedProblems: new Set()
         });
         setCompletedReflections(new Set());
         setSolutionVisibility({});
+        setSessionBookmarksSaved(false);
+        savingBookmarksRef.current = false;
     };
 
     const handleAnswerChange = (problemId: string, answer: string) => {
@@ -653,9 +871,27 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             isSubmitted: true,
             showResults: true
         }));
-
         if (awardXP) {
         awardXP('MOCK_EXAM_COMPLETED', calculateStats().totalXP, 'Mock exam completed!');
+    }
+
+    const timeSpent = (filters.timeLimit * 60) - examState.timeRemaining;
+    const avgTimePerProblem = Math.floor(timeSpent / problems.length);
+    
+    problems.forEach(problem => {
+        const userAnswer = examState.userAnswers[problem.unique_problem_id] || '';
+        const isCorrect = normalizeAnswer(userAnswer) === normalizeAnswer(problem.answer);
+        recordProblemAttempt(problem.unique_problem_id, problem, userAnswer, isCorrect, avgTimePerProblem);
+    });
+
+    // Save analytics
+    if (problemManager) {
+        try {
+            problemManager.saveStats();
+            console.log('Mock exam analytics saved successfully');
+        } catch (error) {
+            console.error('Failed to save mock exam analytics:', error);
+        }
     }
     };
 
@@ -717,6 +953,29 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             topicBreakdown
         };
     };
+
+    const recordProblemAttempt = (problemId: string, problem: Problem, userAnswer: string, isCorrect: boolean, timeSpent: number) => {
+    if (!problemManager) return;
+
+    const attempt: ProblemAttempt = {
+        problemId: problem.unique_problem_id,
+        topic: problem.topic,
+        difficulty: parseInt(problem.difficulty) || 5,
+        source: problem.source || 'Unknown',
+        isCorrect,
+        timeSpent,
+        answerGiven: userAnswer,
+        xpEarned: isCorrect ? (parseInt(problem.difficulty) || 5) * 3 : 0,
+        attemptedAt: new Date()
+    };
+
+    try {
+        problemManager.recordAttempt(attempt);
+        console.log(`Recorded ${isCorrect ? 'correct' : 'incorrect'} attempt for problem ${problemId}`);
+    } catch (error) {
+        console.error('Failed to record problem attempt:', error);
+    }
+};
 
     const formatTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
@@ -810,12 +1069,23 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
             <div className="min-h-screen bg-slate-900 p-6">
                 <div className="max-w-7xl mx-auto space-y-6">
                     <div className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700">
+                       
                         <div className="flex items-center gap-3 text-white text-2xl font-bold">
+                            
                             <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                                 <Trophy className="h-5 w-5 text-emerald-400" />
                             </div>
                             Mock Exam Complete!
                         </div>
+                         <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/dashboard')}
+                                className="text-gray-400 hover:text-white hover:bg-gray-700 mr-2"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to Dashboard
+                            </Button>
                         {onClose && (
                             <Button
                                 variant="ghost"
@@ -1101,6 +1371,15 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
                     </div>
                     {showExam ? 'Mock Exam in Progress' : 'Start Your Mock Exam!'}
                 </div>
+                <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/dashboard')}
+                                className="text-gray-400 hover:text-white hover:bg-gray-700 mr-2"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to Dashboard
+                </Button>
                 {onClose && (
                     <Button
                         variant="ghost"
@@ -1419,6 +1698,14 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
                                                 {Object.keys(examState.userAnswers).length}/{problems.length}
                                             </span>
                                         </div>
+                                        {examState.bookmarkedProblems.size > 0 && (
+                                                <div className="flex items-center space-x-2">
+                                                    <Bookmark className="h-4 w-4 text-orange-400" />
+                                                    <span className="text-orange-400 font-semibold">
+                                                        {examState.bookmarkedProblems.size} bookmarked
+                                                    </span>
+                                                </div>
+                                            )}
                                     </div>
                                 </div>
                                 <div className="mt-3">
@@ -1465,6 +1752,23 @@ export default function MockExam({ isOpen = true, onClose }: MockExamProps) {
                                                     {userAnswer && (
                                                         <Check className="h-4 w-4 text-green-400" />
                                                     )}
+                                                    <Button
+                                                        onClick={() => toggleBookmark(problem.unique_problem_id)}
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className={`ml-2 ${
+                                                            examState.bookmarkedProblems.has(problem.unique_problem_id)
+                                                                ? "text-orange-400 hover:text-orange-300"
+                                                                : "text-gray-400 hover:text-orange-400"
+                                                        }`}
+                                                        disabled={examState.isSubmitted}
+                                                    >
+                                                        {examState.bookmarkedProblems.has(problem.unique_problem_id) ? (
+                                                            <BookmarkCheck className="h-4 w-4" />
+                                                        ) : (
+                                                            <Bookmark className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </CardHeader>

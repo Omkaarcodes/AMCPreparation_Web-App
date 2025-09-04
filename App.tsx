@@ -17,7 +17,7 @@ import { XPProvider } from './client/src/hooks/contexts/XPContext'
 import { ProblemAnalyticsProvider } from './client/src/hooks/contexts/ProblemContext'
 import BookmarkedProblemsViewer from './client/src/pages/BookmarkedProblemsViewer.tsx'
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth'
-import DropDownMenuWrapper from "./TestComponent.tsx"
+import RLSPolicyTester from "./client/src/pages/TestComponent.tsx"
 import ProblemAnalyticsDashboard from './client/src/pages/ProblemAnalyticsPage.tsx'
 
 initializeApp(firebaseConfig);

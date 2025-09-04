@@ -195,7 +195,12 @@ export default function ProblemAnalyticsDashboard() {
     for (let i = 29; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+      
+      // Create the date string using local time components
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
       
       const record = timingRecords[dateStr];
       data.push({
@@ -413,30 +418,33 @@ export default function ProblemAnalyticsDashboard() {
     }
   } else if (secondDistributionView === 'byTime') {
     // Calculate actual average time per topic from timing records
-    const timingRecords = Object.values(stats.problem_timings_record || {});
-    const topicTimeMap: Record<string, { totalTime: number; count: number }> = {};
+    // Calculate total time spent per day for past 30 days
+    const timingRecords = stats.problem_timings_record || {};
+    const dailyTimeData = [];
+    const today = new Date();
     
-    // Calculate actual average time from timing records
-    timingRecords.forEach((record: any) => {
-      if (record.average_time_per_problem && record.total_solved > 0) {
-        topicData.forEach(([topic, data]) => {
-          if (!topicTimeMap[topic]) {
-            topicTimeMap[topic] = { totalTime: 0, count: 0 };
-          }
-          // Distribute the average time proportionally based on problems solved
-          const topicPortion = data.solved / stats.total_problems_solved;
-          topicTimeMap[topic].totalTime += record.average_time_per_problem * topicPortion;
-          topicTimeMap[topic].count += topicPortion;
-        });
-      }
-    });
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      // Create the date string using local time components
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const record = timingRecords[dateStr];
+      dailyTimeData.push({
+        name: dateStr,
+        date: dateStr,
+        totalTime: record?.total_time_spent || 0,
+        problemsSolved: record?.total_solved || 0,
+        avgTimePerProblem: record?.average_time_per_problem || 0,
+        displayDate: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      });
+    }
 
-    return Object.entries(topicTimeMap).map(([topic, data]) => ({
-      name: topic,
-      avgTime: data.count > 0 ? Math.round(data.totalTime / data.count) : 0,
-      solved: stats.problems_by_topic[topic].solved,
-      timePerProblem: data.count > 0 ? Math.round(data.totalTime / data.count) : 0
-    }));
+    return dailyTimeData;
   } else if (secondDistributionView === 'accuracy') {
     return topicData
       .map(([topic, data]) => ({
@@ -824,7 +832,11 @@ export default function ProblemAnalyticsDashboard() {
                       dataKey="date" 
                       stroke="#9ca3af" 
                       fontSize={12}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      tickFormatter={(value) => {
+                        const [year, month, day] = value.split('-');
+                        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      }}
                     />
                     <YAxis stroke="#9ca3af" fontSize={12} />
                     <Tooltip 
@@ -834,12 +846,16 @@ export default function ProblemAnalyticsDashboard() {
                         borderRadius: '8px',
                         color: '#f8fafc'
                       }}
-                      labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                      labelFormatter={(value) => {
+                        const [year, month, day] = value.split('-');
+                        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                        return date.toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        });
+                      }}
                     />
                     <Area 
                       type="monotone" 
@@ -903,26 +919,26 @@ export default function ProblemAnalyticsDashboard() {
                           onClick={() => { setSecondDistributionView('overview'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors rounded-t-lg"
                         >
-                          📊 Subject Overview
+                          Subject Overview
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => { setSecondDistributionView('byDifficulty'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
                         >
                           🎯 Difficulty Analysis
-                        </button>
+                        </button> */}
                         <button
                           onClick={() => { setSecondDistributionView('byTime'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
                         >
-                          ⏱️ Time Analysis
+                          Time Analysis
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => { setSecondDistributionView('accuracy'); setIsSecondDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors rounded-b-lg"
                         >
-                          🏆 Accuracy Ranking
-                        </button>
+                          Accuracy Ranking
+                        </button> */}
                       </div>
                     )}
                   </div>
@@ -987,10 +1003,10 @@ export default function ProblemAnalyticsDashboard() {
                       <Legend />
                     </ComposedChart>
                   ) : secondDistributionView === 'byTime' ? (
-                    <ComposedChart data={secondChartData}>
+                                      <ComposedChart data={secondChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis 
-                        dataKey="name" 
+                        dataKey="displayDate" 
                         stroke="#9ca3af"
                         fontSize={12}
                         angle={-45}
@@ -1007,14 +1023,34 @@ export default function ProblemAnalyticsDashboard() {
                           color: '#f8fafc'
                         }}
                         formatter={(value: any, name: string) => {
-                          if (name === 'avgTime' || name === 'timePerProblem') {
+                          if (name === 'totalTime') {
+                            const mins = Math.floor(value / 60);
+                            const secs = value % 60;
+                            return [`${mins}m ${secs}s`, 'Total Time Spent'];
+                          }
+                          if (name === 'avgTimePerProblem') {
                             return [`${value}s`, 'Avg Time per Problem'];
+                          }
+                          if (name === 'problemsSolved') {
+                            return [value, 'Problems Solved'];
                           }
                           return [value, name];
                         }}
+                        labelFormatter={(label, payload) => {
+                          if (payload && payload[0]) {
+                            const date = new Date(payload[0].payload.date);
+                            return date.toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            });
+                          }
+                          return label;
+                        }}
                       />
-                      <Bar yAxisId="left" dataKey="solved" fill="#06B6D4" radius={[4, 4, 0, 0]} />
-                      <Line yAxisId="right" type="monotone" dataKey="avgTime" stroke="#F97316" strokeWidth={3} dot={{ fill: '#F97316', r: 4 }} />
+                      <Bar yAxisId="left" dataKey="totalTime" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+                      <Line yAxisId="right" type="monotone" dataKey="problemsSolved" stroke="#F97316" strokeWidth={3} dot={{ fill: '#F97316', r: 4 }} />
                     </ComposedChart>
                   ) : (
                     <ComposedChart data={secondChartData}>
@@ -1340,12 +1376,13 @@ export default function ProblemAnalyticsDashboard() {
                     data={Object.entries(stats.difficulty_stats).map(([level, data]) => ({
                       name: `Level ${level}`,
                       value: data.solved,
-                      accuracy: data.accuracy
+                      accuracy: data.accuracy,
+                      percentage: ((data.solved / stats.total_problems_solved) * 100).toFixed(1)
                     }))}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={false} // Disable inline labels to prevent overlap
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -1358,23 +1395,50 @@ export default function ProblemAnalyticsDashboard() {
                   </Pie>
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#1e293b', 
-                      border: '1px solid #475569',
+                      backgroundColor: '#f8fafc', 
+                      border: '1px solid #e2e8f0',
                       borderRadius: '8px',
-                      color: '#f8fafc'
+                      color: '#1e293b',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    labelStyle={{
+                      color: '#1e293b'
+                    }}
+                    itemStyle={{
+                      color: '#1e293b'
                     }}
                     formatter={(value: any, name: string, props: any) => [
                       value,
                       `${name} (${props.payload.accuracy?.toFixed(1)}% accuracy)`
                     ]}
-                  />
+                />
+                 
                 </RechartsPieChart>
               </ResponsiveContainer>
             </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                {Object.entries(stats.difficulty_stats).map(([level, data], index) => {
+                  const percentage = ((data.solved / stats.total_problems_solved) * 100).toFixed(1);
+                  const colors = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
+                  return (
+                    <div key={level} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: colors[index % 5] }}
+                      />
+                      <span className="text-slate-400">
+                        Level {level}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
           </CardContent>
         </Card>
 
         {/* Weekly Heatmap Placeholder */}
+
         <Card className="bg-slate-800/50 border-slate-700/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-white">
@@ -1386,23 +1450,24 @@ export default function ProblemAnalyticsDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {/* Last 7 days activity */}
-              <div className="grid grid-cols-7 gap-2">
+            <div className="space-y-6">
+              {/* Enlarged 7-day activity heatmap */}
+              <div className="grid grid-cols-7 gap-4">
                 {Array.from({ length: 7 }, (_, i) => {
-                  const date = new Date();
-                  date.setDate(date.getDate() - (6 - i));
-                  const dateStr = date.toISOString().split('T')[0];
+                  const today = new Date();
+                  const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (6 - i));
+                  const dateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+                  
                   const dayData = past30DaysData.find(d => d.date === dateStr);
                   const intensity = dayData ? Math.min(dayData.solved / 5, 1) : 0;
                   
                   return (
                     <div key={i} className="text-center">
-                      <div className="text-xs text-slate-500 mb-1">
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                      <div className="text-sm text-slate-400 mb-3 font-medium">
+                        {targetDate.toLocaleDateString('en-US', { weekday: 'short' })}
                       </div>
                       <div 
-                        className="w-8 h-8 rounded-md border border-slate-600/50 flex items-center justify-center text-xs font-medium"
+                        className="w-16 h-16 rounded-xl border border-slate-600/50 flex items-center justify-center text-lg font-bold shadow-lg hover:scale-105 transition-transform duration-200"
                         style={{
                           backgroundColor: intensity > 0 ? 
                             `rgba(59, 130, 246, ${0.3 + intensity * 0.7})` : 
@@ -1412,27 +1477,30 @@ export default function ProblemAnalyticsDashboard() {
                       >
                         {dayData?.solved || 0}
                       </div>
+                      <div className="text-xs text-slate-500 mt-2">
+                        {targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Monthly summary */}
-              <div className="border-t border-slate-700 pt-4">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-lg font-bold text-white">{stats.monthly_problems_solved}</div>
-                    <div className="text-xs text-slate-500">This Month</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-white">{stats.weekly_problems_solved}</div>
-                    <div className="text-xs text-slate-500">This Week</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-white">{Math.round(stats.average_accuracy)}%</div>
-                    <div className="text-xs text-slate-500">Avg Accuracy</div>
-                  </div>
+              <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-700">
+                <span className="text-xs text-slate-500">Less</span>
+                <div className="flex gap-1">
+                  {[0, 0.25, 0.5, 0.75, 1].map((intensity, index) => (
+                    <div
+                      key={index}
+                      className="w-3 h-3 rounded-sm"
+                      style={{
+                        backgroundColor: intensity > 0 ? 
+                          `rgba(59, 130, 246, ${0.3 + intensity * 0.7})` : 
+                          'rgba(71, 85, 105, 0.3)'
+                      }}
+                    />
+                  ))}
                 </div>
+                <span className="text-xs text-slate-500">More</span>
               </div>
             </div>
           </CardContent>

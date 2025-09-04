@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useXP } from '../../hooks/contexts/XPContext';
+import {useProblemAnalytics} from "../../hooks/contexts/ProblemContext"
+import { ToastContainer, toast } from 'react-toastify';
 
 import { 
     getAuth, 
@@ -76,6 +78,12 @@ interface Problem {
     difficulty_1: string;
 }
 
+interface FAQItem {
+    question: string;
+    answer: string;
+    category: string;
+}
+
 interface UserProfile {
     id: string;
     created_at: string;
@@ -121,6 +129,9 @@ export default function Dashboard() {
         forceSave, 
         hasUnsavedChanges 
     } = useXP();
+
+    const { problemManager } = useProblemAnalytics();
+
 
     // Custom method to award raw XP amount (for your component needs)
     const awardRawXP = useCallback((amount: number, customMessage?: string) => {
@@ -169,28 +180,38 @@ export default function Dashboard() {
                     hasUrl: false,
                     url: "",
                     submenu: [
-                        { name: "Algebra", isActive: false },
-                        { name: "Geometry", isActive: false },
-                        { name: "Number Theory", isActive: false },
-                        { name: "Combinatorics", isActive: false },
-                        { name: "Probability", isActive: false }
+                        { name: "Click on Problems Solved for more!", isActive: false },
                     ]
+                },
+                // { 
+                //     name: "Adaptive Quiz", 
+                //     icon: Brain, 
+                //     isActive: false, 
+                //     hasSubmenu: true,
+                //     hasUrl: false,
+                //     url: "",
+                //     submenu: [
+                //         { name: "Quick Quiz", isActive: false },
+                //         { name: "Adaptive Mode", isActive: false },
+                //         { name: "Difficulty Ladder", isActive: false }
+                //     ]
+                // },
+                { 
+                    name: "Mock Exams", 
+                    icon: Clock, 
+                    isActive: false, 
+                    hasSubmenu: false,
+                    hasUrl: true, 
+                    url: "/mock-exams" 
                 },
                 { 
-                    name: "Adaptive Quiz", 
-                    icon: Brain, 
+                    name: "Error Journal", 
+                    icon: BookMarked, 
                     isActive: false, 
-                    hasSubmenu: true,
-                    hasUrl: false,
-                    url: "",
-                    submenu: [
-                        { name: "Quick Quiz", isActive: false },
-                        { name: "Adaptive Mode", isActive: false },
-                        { name: "Difficulty Ladder", isActive: false }
-                    ]
+                    hasSubmenu: false,
+                    hasUrl: true, 
+                    url: "/error-analytics" 
                 },
-                { name: "Mock Exams", icon: Clock, isActive: false, hasUrl: true, url: "/mock-exams" },
-                { name: "Error Journal", icon: BookMarked, isActive: false, hasUrl: false, url: "" },
             ]
         },
         {
@@ -201,52 +222,75 @@ export default function Dashboard() {
                     icon: BarChart3, 
                     isActive: false, 
                     hasSubmenu: true,
-                    hasUrl: false,
-                    url: "",
-                    submenu: [
-                        { name: "Performance", isActive: false },
-                        { name: "Speed Analysis", isActive: false },
-                        { name: "Topic Mastery", isActive: false }
-                    ]
+                    hasUrl: true,
+                    url: "/problem-data",
+                    
                 },
+                // { 
+                //     name: "Mastery Map", 
+                //     icon: Target, 
+                //     isActive: false, 
+                //     hasSubmenu: false,
+                //     hasUrl: false,
+                //     url: "/problem-data",
+                // },
+                // { 
+                //     name: "Spaced Review", 
+                //     icon: RotateCcw, 
+                //     isActive: false, 
+                //     hasSubmenu: true,
+                //     hasUrl: false,
+                //     url: "",
+                //     submenu: [
+                //         { name: "Due Today", isActive: false },
+                //         { name: "Schedule", isActive: false },
+                //         { name: "Overdue", isActive: false }
+                //     ]
+                // },
+                // { 
+                //     name: "Study Streaks", 
+                //     icon: Flame, 
+                //     isActive: false, 
+                //     hasSubmenu: false,
+                //     hasUrl: false,
+                //     url: ""
+                // },
+            ]
+        },
+        {
+            label: "Competition",
+            items: [
                 { 
-                    name: "Mastery Map", 
-                    icon: Target, 
+                    name: "Weekly Challenges", 
+                    icon: Calendar, 
                     isActive: false, 
                     hasSubmenu: false,
                     hasUrl: false,
                     url: ""
                 },
                 { 
-                    name: "Spaced Review", 
-                    icon: RotateCcw, 
+                    name: "Badges & XP", 
+                    icon: Star, 
                     isActive: false, 
-                    hasSubmenu: true,
+                    hasSubmenu: false,
                     hasUrl: false,
-                    url: "",
-                    submenu: [
-                        { name: "Due Today", isActive: false },
-                        { name: "Schedule", isActive: false },
-                        { name: "Overdue", isActive: false }
-                    ]
+                    url: ""
                 },
-                { name: "Study Streaks", icon: Flame, isActive: false },
-            ]
-        },
-        {
-            label: "Competition",
-            items: [
-                { name: "Weekly Challenges", icon: Calendar, isActive: false },
-                { name: "Badges & XP", icon: Star, isActive: false },
             ]
         },
         {
             label: "Library",
             items: [
-                { name: "Problem Bank", icon: Database, isActive: false },
-                { name: "Custom Playlists", icon: List, isActive: false },
-                { name: "Saved Problems", icon: Bookmark, isActive: false },
-                { name: "Settings", icon: Settings, isActive: false },
+               
+                { 
+                    name: "Saved Problems", 
+                    icon: Bookmark, 
+                    isActive: false, 
+                    hasSubmenu: false,
+                    hasUrl: true,
+                    url: "/bookmarked-problems"
+                }
+                
             ]
         }
     ];
@@ -315,6 +359,7 @@ export default function Dashboard() {
         }
     }
 };
+
 
     // Existing functions for display name management...
     const getSupabaseToken = async (): Promise<string> => {
@@ -532,9 +577,9 @@ export default function Dashboard() {
     const stats = [
         {
             title: "Problems Solved",
-            value: "1,247",
-            change: "+23",
-            changeText: "this week",
+            value: problemManager?.getTotalProblemsSolved().toString() || "0",
+            change: problemManager?.getDailyProblemsSolved().toString() || "0",
+            changeText: "today",
             icon: Target,
             color: "text-emerald-400",
             bgColor: "bg-emerald-500/10",
@@ -546,7 +591,7 @@ export default function Dashboard() {
             title: "Current Streak",
             value: xpProgress ? `${xpProgress.streak_days} days` : "0 days",
             change: xpProgress && xpProgress.streak_days > 0 ? `+${xpProgress.streak_days > 1 ? '1' : xpProgress.streak_days}` : "0",
-            changeText: "streak active",
+            changeText: "streak extension",
             icon: Flame,
             color: "text-orange-400",
             bgColor: "bg-orange-500/10",
@@ -814,36 +859,13 @@ export default function Dashboard() {
                             </Breadcrumb>
                             
                             <div className="flex items-center space-x-4">
-                                <div className="relative group">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4 group-focus-within:text-blue-400 transition-colors" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search..."
-                                        className="pl-10 pr-4 py-2 w-64 border border-slate-700 rounded-lg bg-slate-800/50 text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
-                                    />
-                                </div>
+
                                 <button className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors duration-200 relative">
                                     <Bell className="h-5 w-5 text-slate-400 hover:text-white" />
                                     <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full animate-pulse"></span>
                                 </button>
 
-                                {/* Test XP Button - Example usage */}
-                                <button 
-                                    onClick={() => awardXP('PROBLEM_SOLVED_MEDIUM')}
-                                    className="px-3 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30 transition-colors"
-                                    title="Test Predefined XP"
-                                >
-                                    +XP (Medium)
-                                </button>
-                                
-                                {/* Test Raw XP Button - Example for your custom component */}
-                                <button 
-                                    onClick={() => awardRawXP(25, 'Test Raw XP')}
-                                    className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded text-xs hover:bg-purple-500/30 transition-colors"
-                                    title="Test Raw XP"
-                                >
-                                    +25 XP
-                                </button>
+                               
                             </div>
                         </div>
                     </header>
@@ -931,53 +953,205 @@ export default function Dashboard() {
                             ))}
                         </div>
 
-                        {/* Content Grid */}
+                                                {/* Content Grid */}
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                            {/* Chart Area */}
-                            <Card className={`col-span-4 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-left-4 fade-in duration-700' : ''}`}>
+                            {/* Daily Challenges Widget */}
+                            <Card className={`col-span-7 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-left-4 fade-in duration-700' : ''}`}>
                                 <CardHeader className="pb-4">
                                     <CardTitle className="flex items-center gap-3 text-white">
-                                        <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-                                            <BarChart3 className="h-5 w-5 text-white" />
+                                        <div className="p-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg">
+                                            <Target className="h-5 w-5 text-white" />
                                         </div>
-                                        Performance Analytics
+                                        Daily Challenges
                                     </CardTitle>
                                     <CardDescription className="text-slate-400">
-                                        Your problem-solving performance and XP progression over time
+                                        Complete today's challenges to get a headstart!
                                     </CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="h-[300px] flex items-center justify-center bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-700 hover:border-slate-600 transition-colors duration-300">
-                                        <div className="text-center space-y-4">
-                                            <div className="relative">
-                                                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-xl opacity-20 animate-pulse"></div>
-                                                <BarChart3 className="h-16 w-16 text-slate-500 mx-auto relative" />
+                                <CardContent className="space-y-4">
+                                    {/* Challenge 1: Daily Problems */}
+                                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-blue-500/20 rounded-lg">
+                                                    <BookOpen className="h-4 w-4 text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-white">Solve 10 Problems</h3>
+                                                    <p className="text-xs text-slate-400">Any difficulty level</p>
+                                                </div>
                                             </div>
-                                            <div className="space-y-2">
-                                                <p className="text-slate-300 font-medium">XP and performance visualization would go here</p>
-                                                <p className="text-sm text-slate-500">
-                                                    Level progression, XP trends, topic mastery, and accuracy improvements
-                                                </p>
-                                                {xpProgress && (
-                                                    <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
-                                                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                                                            <div className="text-blue-400 font-medium">Daily XP</div>
-                                                            <div className="text-white text-lg">{xpProgress.daily_xp_earned}</div>
-                                                        </div>
-                                                        <div className="bg-slate-800/50 p-3 rounded-lg">
-                                                            <div className="text-purple-400 font-medium">Next Level</div>
-                                                            <div className="text-white text-lg">{xpProgress.xp_towards_next} XP</div>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                           
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-slate-400">Progress</span>
+                                                <span className="text-blue-400 font-medium">
+                                                    {Math.min(problemManager?.getDailyProblemsSolved() || 0, 10)}/10
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-slate-700 rounded-full h-2">
+                                                <div 
+                                                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-full rounded-full transition-all duration-500"
+                                                    style={{ 
+                                                        width: `${Math.min((problemManager?.getDailyProblemsSolved() || 0) / 10 * 100, 100)}%` 
+                                                    }}
+                                                />
                                             </div>
                                         </div>
+
+                                        {(problemManager?.getDailyProblemsSolved() || 0) >= 10 ? (
+                                            <div className="mt-3 flex items-center gap-2 text-green-400">
+                                                <CheckCircle className="h-4 w-4" />
+                                                <span className="text-sm font-medium">Challenge Complete!</span>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setShowProblemExplorer(true)}
+                                                className="mt-3 w-full bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-500/30 transition-all duration-200 text-sm font-medium"
+                                            >
+                                                Start Solving Problems
+                                            </button>
+                                        )}
                                     </div>
+
+                                    {/* Challenge 2: Daily XP Goal */}
+                                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-purple-500/20 rounded-lg">
+                                                    <Zap className="h-4 w-4 text-purple-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-white">Earn 200 XP</h3>
+                                                    <p className="text-xs text-slate-400">From any activity</p>
+                                                </div>
+                                            </div>
+                                           
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-slate-400">Progress</span>
+                                                <span className="text-purple-400 font-medium">
+                                                    {Math.min(xpProgress?.daily_xp_earned || 0, 200)}/200 XP
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-slate-700 rounded-full h-2">
+                                                <div 
+                                                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-500"
+                                                    style={{ 
+                                                        width: `${Math.min((xpProgress?.daily_xp_earned || 0) / 200 * 100, 100)}%` 
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {(xpProgress?.daily_xp_earned || 0) >= 200 ? (
+                                            <div className="mt-3 flex items-center gap-2 text-green-400">
+                                                <CheckCircle className="h-4 w-4" />
+                                                <span className="text-sm font-medium">Challenge Complete!</span>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/30">
+                                                <p className="text-xs text-slate-400 text-center">
+                                                    Start a <span className="text-blue-400 font-medium">Mock Exam</span> or explore problems
+                                                    
+                                                    to earn XP
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Challenge 3: Maintain Streak */}
+                                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-orange-500/20 rounded-lg">
+                                                    <Flame className="h-4 w-4 text-orange-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-white">Maintain Streak</h3>
+                                                    <p className="text-xs text-slate-400">Keep your daily login streak</p>
+                                                </div>
+                                            </div>
+                                           
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-slate-400">Current Streak</span>
+                                                <span className="text-orange-400 font-medium">
+                                                    {xpProgress?.streak_days || 0} days
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-slate-700 rounded-full h-2">
+                                                <div className="bg-gradient-to-r from-orange-500 to-red-500 h-full rounded-full w-full" />
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 flex items-center gap-2 text-green-400">
+                                            <CheckCircle className="h-4 w-4" />
+                                            <span className="text-sm font-medium">Streak Active!</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Daily Summary */}
+                                    {/* <div className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 rounded-xl p-4 border border-slate-600/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-medium text-white">Today's Summary</h3>
+                                            <div className="text-sm text-slate-400">
+                                                {new Date().toLocaleDateString('en-US', { 
+                                                    month: 'short', 
+                                                    day: 'numeric' 
+                                                })}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-3 gap-4 text-center">
+                                            <div>
+                                                <div className="text-lg font-bold text-blue-400">
+                                                    {problemManager?.getDailyProblemsSolved() || 0}
+                                                </div>
+                                                <div className="text-xs text-slate-400">Problems</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-lg font-bold text-purple-400">
+                                                    {xpProgress?.daily_xp_earned || 0}
+                                                </div>
+                                                <div className="text-xs text-slate-400">XP Earned</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-lg font-bold text-green-400">
+                                                    {[
+                                                        (problemManager?.getDailyProblemsSolved() || 0) >= 5,
+                                                        (xpProgress?.daily_xp_earned || 0) >= 200,
+                                                        true // Streak is always active if logged in
+                                                    ].filter(Boolean).length}
+                                                    /3
+                                                </div>
+                                                <div className="text-xs text-slate-400">Completed</div>
+                                            </div>
+                                        </div> */}
+
+                                        {/* Total bonus XP available */}
+                                        {/* <div className="mt-3 pt-3 border-t border-slate-600/50 text-center">
+                                            <div className="text-sm text-slate-400">Bonus XP Available</div>
+                                            <div className="text-xl font-bold text-yellow-400">
+                                                {[
+                                                    (problemManager?.getDailyProblemsSolved() || 0) >= 5 ? 0 : 100,
+                                                    (xpProgress?.daily_xp_earned || 0) >= 200 ? 0 : 50,
+                                                    0 // Streak bonus already earned
+                                                ].reduce((sum, xp) => sum + xp, 0)} XP
+                                            </div>
+                                        </div>
+                                    </div> */}
                                 </CardContent>
                             </Card>
 
-                            {/* Recent Activity */}
-                            <Card className={`col-span-3 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-right-4 fade-in duration-700' : ''}`}>
+                            {/* Recent Activity - Keep existing */}
+                            {/* <Card className={`col-span-3 bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300 ${mounted ? 'animate-in slide-in-from-right-4 fade-in duration-700' : ''}`}>
                                 <CardHeader className="pb-4">
                                     <CardTitle className="flex items-center gap-3 text-white">
                                         <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg">
@@ -1007,7 +1181,7 @@ export default function Dashboard() {
                                         ))}
                                     </div>
                                 </CardContent>
-                            </Card>
+                            </Card> */}
                         </div>
 
                         {/* XP and Progress Overview */}
@@ -1226,12 +1400,14 @@ export default function Dashboard() {
             </div>
 
             {/* Problem Explorer Modal */}
-            {showProblemExplorer && xpManager &&(
+            {showProblemExplorer && xpManager && problemManager && (
                 <ProblemsSolvedWidget 
                     isOpen={showProblemExplorer}
                     onClose={() => setShowProblemExplorer(false)}
                     onStartPractice={handleStartPractice}
                     xpManager={xpManager}
+                    problemAnalyticsManager={problemManager}
+                    user={user}
                 />
             )}
 

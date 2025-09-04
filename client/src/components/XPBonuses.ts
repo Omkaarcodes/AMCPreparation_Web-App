@@ -55,29 +55,24 @@ export class XPProgressManager {
 
   // Helper method to get start of day for consistent date comparisons
   private getStartOfDay(date: Date): Date {
-  // Always use UTC to avoid timezone issues
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
 
   // Helper method to safely parse dates
   private parseDate(dateInput: Date | string | null | undefined): Date | null {
     if (!dateInput) return null;
     
-    let parsedDate: Date;
-    
     if (typeof dateInput === 'string') {
-      parsedDate = new Date(dateInput);
-      if (isNaN(parsedDate.getTime())) return null;
-    } else if (dateInput instanceof Date) {
-      if (isNaN(dateInput.getTime())) return null;
-      parsedDate = dateInput;
-    } else {
-      return null;
+      const parsed = new Date(dateInput);
+      return isNaN(parsed.getTime()) ? null : parsed;
     }
     
-    // Convert to UTC if not already
-    return new Date(parsedDate.getTime());
-}
+    if (dateInput instanceof Date) {
+      return isNaN(dateInput.getTime()) ? null : dateInput;
+    }
+    
+    return null;
+  }
 
   // Calculate XP needed for a specific level
   private getXPForLevel(level: number): number {
@@ -95,44 +90,44 @@ export class XPProgressManager {
 
   // Improved daily reset logic
   public checkAndResetDailyProgress(): boolean {
-  if (this.dailyResetProcessed) {
+    if (this.dailyResetProcessed) {
+      return false; // Already processed for this session
+    }
+
+    const today = this.getStartOfDay(new Date());
+    const lastReset = this.parseDate(this.currentProgress.last_daily_reset);
+    const lastResetStart = lastReset ? this.getStartOfDay(lastReset) : null;
+
+    // Only reset if it's truly a different day
+    const shouldReset = !lastResetStart || today.getTime() !== lastResetStart.getTime();
+    
+    if (shouldReset) {
+      const previousDailyXP = this.currentProgress.daily_xp_earned;
+      
+      console.log('🔄 Resetting daily XP for new day', {
+        today: today.toDateString(),
+        lastReset: lastResetStart?.toDateString() || 'never',
+        previousDailyXP
+      });
+      
+      this.currentProgress.daily_xp_earned = 0;
+      this.currentProgress.last_daily_reset = today;
+      this.needsDailyResetSave = true;
+      this.dailyResetProcessed = true;
+      
+      return true;
+    }
+    
+    this.dailyResetProcessed = true;
     return false;
   }
 
-  const todayUTC = this.getStartOfDay(new Date());
-  const lastReset = this.parseDate(this.currentProgress.last_daily_reset);
-  const lastResetStartUTC = lastReset ? this.getStartOfDay(lastReset) : null;
-
-  const shouldReset = !lastResetStartUTC || todayUTC.getTime() !== lastResetStartUTC.getTime();
-  
-  if (shouldReset) {
-    const previousDailyXP = this.currentProgress.daily_xp_earned;
-    
-    console.log('🔄 Resetting daily XP for new day', {
-      todayUTC: todayUTC.toISOString(),
-      lastResetUTC: lastResetStartUTC?.toISOString() || 'never',
-      previousDailyXP
-    });
-    
-    this.currentProgress.daily_xp_earned = 0;
-    this.currentProgress.last_daily_reset = todayUTC;
-    this.needsDailyResetSave = true;
-    this.dailyResetProcessed = true;
-    
-    return true;
-  }
-  
-  this.dailyResetProcessed = true;
-  return false;
-}
-
-
   // Check if two dates are the same day
   public isSameDay(date1: Date, date2: Date): boolean {
-    const day1UTC = this.getStartOfDay(date1);
-    const day2UTC = this.getStartOfDay(date2);
-    return day1UTC.getTime() === day2UTC.getTime();
-}
+    const day1 = this.getStartOfDay(date1);
+    const day2 = this.getStartOfDay(date2);
+    return day1.getTime() === day2.getTime();
+  }
 
   // Add XP and handle level ups
   public addXP(amount: number, source: string): { leveledUp: boolean; newLevel?: number; oldLevel?: number } {
@@ -203,43 +198,40 @@ export class XPProgressManager {
 
   // Fixed streak update logic
   public updateStreak(earnedToday: Date = new Date()): void {
-  const todayUTC = this.getStartOfDay(earnedToday);
-  const lastXPDate = this.parseDate(this.currentProgress.last_xp_earned);
-  
-  if (!lastXPDate) {
-    this.currentProgress.streak_days = 1;
-    console.log('🔥 Starting new streak: 1 day');
-    return;
-  }
-
-  const lastXPStartUTC = this.getStartOfDay(lastXPDate);
-  const daysDiff = Math.floor((todayUTC.getTime() - lastXPStartUTC.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Handle negative day difference (time inconsistency)
-  if (daysDiff < 0) {
-    console.warn('🔥 Time inconsistency detected (negative day diff):', daysDiff, {
-      todayUTC: todayUTC.toISOString(),
-      lastXPStartUTC: lastXPStartUTC.toISOString()
-    });
-    // Don't change streak when time goes backwards
-    return;
-  }
-  
-  if (daysDiff === 0) {
-    if (this.currentProgress.streak_days === 0) {
+    const today = this.getStartOfDay(earnedToday);
+    const lastXPDate = this.parseDate(this.currentProgress.last_xp_earned);
+    
+    if (!lastXPDate) {
+      // First time earning XP ever
       this.currentProgress.streak_days = 1;
-      console.log('🔥 Fixed zero streak - set to 1 day (same day XP)');
-    } else {
-      console.log('🔥 Same day XP - streak maintained:', this.currentProgress.streak_days);
+      console.log('🔥 Starting new streak: 1 day');
+      return;
     }
-  } else if (daysDiff === 1) {
-    this.currentProgress.streak_days += 1;
-    console.log('🔥 Streak continued:', this.currentProgress.streak_days, 'days');
-  } else if (daysDiff > 1) {
-    this.currentProgress.streak_days = 1;
-    console.log('🔥 Streak reset to 1 day due to', daysDiff, 'day gap');
+
+    const lastXPStart = this.getStartOfDay(lastXPDate);
+    const daysDiff = Math.floor((today.getTime() - lastXPStart.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff === 0) {
+      // Same day - no change to streak, but ensure we have at least 1 day
+      if (this.currentProgress.streak_days === 0) {
+        this.currentProgress.streak_days = 1;
+        console.log('🔥 Fixed zero streak - set to 1 day (same day XP)');
+      } else {
+        console.log('🔥 Same day XP - streak maintained:', this.currentProgress.streak_days);
+      }
+    } else if (daysDiff === 1) {
+      // Consecutive day - increment streak
+      this.currentProgress.streak_days += 1;
+      console.log('🔥 Streak continued:', this.currentProgress.streak_days, 'days');
+    } else if (daysDiff > 1) {
+      // Gap in days - reset streak to 1 (starting fresh today)
+      this.currentProgress.streak_days = 1;
+      console.log('🔥 Streak reset to 1 day due to', daysDiff, 'day gap');
+    } else {
+      // This shouldn't happen (daysDiff < 0), but handle it gracefully
+      console.warn('🔥 Unexpected day difference:', daysDiff, '- maintaining current streak');
+    }
   }
-}
 
   // Get Supabase token
   private async getSupabaseToken(): Promise<string> {
@@ -363,76 +355,68 @@ export class XPProgressManager {
 
   // Save pending XP with improved logic
   public async savePendingXP(): Promise<void> {
-  if (this.pendingXPGains.length === 0 && !this.needsDailyResetSave) {
-    return;
-  }
-
-  if (!this.isOnline || this.isDestroyed) {
-    console.warn('Cannot save - offline or destroyed');
-    return;
-  }
-
-  try {
-    const token = await this.getSupabaseToken();
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-    // Helper function to safely convert to UTC ISO string
-    const toUTCISOString = (date: Date | string | null | undefined): string | null => {
-      if (!date) return null;
-      
-      let parsedDate: Date;
-      if (typeof date === 'string') {
-        parsedDate = new Date(date);
-      } else if (date instanceof Date) {
-        parsedDate = date;
-      } else {
-        return null;
-      }
-      
-      if (isNaN(parsedDate.getTime())) return null;
-      return parsedDate.toISOString(); // This is always UTC
-    };
-
-    const updateData = {
-      current_level: this.currentProgress.current_level,
-      total_xp: this.currentProgress.total_xp,
-      xp_towards_next: this.currentProgress.xp_towards_next,
-      daily_xp_earned: this.currentProgress.daily_xp_earned,
-      streak_days: this.currentProgress.streak_days,
-      last_xp_earned: toUTCISOString(this.currentProgress.last_xp_earned),
-      last_daily_reset: toUTCISOString(this.currentProgress.last_daily_reset),
-      updated_at: new Date().toISOString() // Always UTC
-    };
-
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/user_xp_progress?user_id=eq.${this.user.uid}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'apikey': anonKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(updateData)
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to save progress: ${response.status}`);
+    if (this.pendingXPGains.length === 0 && !this.needsDailyResetSave) {
+      return;
     }
 
-    this.pendingXPGains = [];
-    this.needsDailyResetSave = false;
-    this.lastSaveTime = new Date();
-    
-    console.log('Saved XP progress to database (UTC)');
-  } catch (error) {
-    console.error('Failed to save XP progress:', error);
-    throw error;
+    if (!this.isOnline || this.isDestroyed) {
+      console.warn('Cannot save - offline or destroyed');
+      return;
+    }
+
+    try {
+      const token = await this.getSupabaseToken();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+      // Helper function to safely convert to ISO string
+      const toISOString = (date: Date | string | null | undefined): string | null => {
+        if (!date) return null;
+        if (typeof date === 'string') return date;
+        if (date instanceof Date && !isNaN(date.getTime())) return date.toISOString();
+        return null;
+      };
+
+      const updateData = {
+        current_level: this.currentProgress.current_level,
+        total_xp: this.currentProgress.total_xp,
+        xp_towards_next: this.currentProgress.xp_towards_next,
+        daily_xp_earned: this.currentProgress.daily_xp_earned,
+        streak_days: this.currentProgress.streak_days,
+        last_xp_earned: toISOString(this.currentProgress.last_xp_earned),
+        last_daily_reset: toISOString(this.currentProgress.last_daily_reset),
+        updated_at: new Date().toISOString()
+      };
+
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/user_xp_progress?user_id=eq.${this.user.uid}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'apikey': anonKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(updateData)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to save progress: ${response.status}`);
+      }
+
+      // Clear pending changes after successful save
+      this.pendingXPGains = [];
+      this.needsDailyResetSave = false;
+      this.lastSaveTime = new Date();
+      
+      console.log('Saved XP progress to database');
+    } catch (error) {
+      console.error('Failed to save XP progress:', error);
+      throw error;
+    }
   }
-}
 
   // Emergency save methods
   public emergencyLocalSave(): void {

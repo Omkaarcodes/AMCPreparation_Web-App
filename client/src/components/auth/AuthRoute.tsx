@@ -32,4 +32,4 @@ const AuthRoute: React.FunctionComponent<IAuthRouteProps> = (props) => {
 
 }
 
-export default AuthRoute
+export default AuthRoute;

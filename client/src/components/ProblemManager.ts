@@ -234,12 +234,10 @@ export class ProblemAnalyticsManager {
       topicStats.sources[attempt.source].accuracy = 
         (topicStats.sources[attempt.source].solved / topicStats.sources[attempt.source].attempts) * 100;
 
-      // FIXED: More defensive difficulty_stats handling
       if (!this.currentStats.difficulty_stats) {
         this.currentStats.difficulty_stats = {};
       }
       
-      // Double-check the object still exists and initialize the specific difficulty key
       if (!this.currentStats.difficulty_stats[difficultyKey]) {
         this.currentStats.difficulty_stats[difficultyKey] = { solved: 0, attempts: 0, accuracy: 0 };
       }
@@ -698,6 +696,8 @@ export class ProblemAnalyticsManager {
       }
     });
 
+   
+
     // Analyze recent trend (last 7 days vs previous 7 days)
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -743,6 +743,7 @@ export class ProblemAnalyticsManager {
       .filter(record => record.date >= cutoffStr)
       .sort((a, b) => a.date.localeCompare(b.date));
   }
+
 
   // Emergency save methods
   public emergencyLocalSave(): void {
@@ -928,5 +929,9 @@ export class ProblemAnalyticsManager {
 
   public getTotalProblemsSolved(): number {
     return this.currentStats.total_problems_solved;
+  }
+  
+  public getDailyProblemsSolved(): number {
+    return this.currentStats.daily_problems_solved;
   }
 }

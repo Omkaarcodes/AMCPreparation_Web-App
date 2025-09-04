@@ -7,6 +7,7 @@ import { Progress } from '../../components/ui/progress';
 import { supabase } from '../supabase-client';
 import { XPProgressManager } from '../../components/XPBonuses'; 
 import { useLevelUpNotification, LevelUpNotification } from '../../components/notifications/LevelUp';
+import { ProblemAnalyticsManager, ProblemAttempt } from '../../components/ProblemManager'
 
 
 
@@ -40,6 +41,7 @@ interface ProblemsSolvedWidgetProps {
     onClose: () => void;
     onStartPractice: (problems: Problem[]) => void;
     xpManager: XPProgressManager; 
+    problemAnalyticsManager: ProblemAnalyticsManager;
     user?: any;
 }
 
@@ -135,6 +137,7 @@ export default function ProblemsSolvedWidget({
     onClose, 
     onStartPractice,
     xpManager,
+    problemAnalyticsManager,
     user
 }: ProblemsSolvedWidgetProps) {
 
@@ -219,6 +222,16 @@ export default function ProblemsSolvedWidget({
             setIsActive(true);
         }
     }, [problems]);
+
+    useEffect(() => {
+    if (isOpen && problemAnalyticsManager && user) {
+        // Check and reset daily progress when opening the widget
+        const resetOccurred = problemAnalyticsManager.checkAndResetDaily();
+        if (resetOccurred) {
+            console.log('Daily progress reset detected');
+        }
+    }
+}, [isOpen, problemAnalyticsManager, user]);
 
     const getCurrentProblem = () => problems[currentProblemIndex];
     const getCurrentProblemState = () => {
@@ -437,50 +450,131 @@ export default function ProblemsSolvedWidget({
         }
     };
 
+    // Record problem attempt to analytics manager
+    const recordProblemAttempt = (isCorrect: boolean, timeSpent: number, userAnswer: string, xpGained: number) => {
+            const problem = getCurrentProblem();
+            if (!problem || !problemAnalyticsManager) return;
+
+            const attempt: ProblemAttempt = {
+                problemId: problem.unique_problem_id,
+                topic: problem.topic,
+                difficulty: parseInt(problem.difficulty) || 5,
+                source: problem.source || 'Unknown',
+                isCorrect,
+                timeSpent,
+                answerGiven: userAnswer,
+                xpEarned: xpGained,
+                attemptedAt: new Date()
+            };
+
+            try {
+                problemAnalyticsManager.recordAttempt(attempt);
+                console.log(`Recorded ${isCorrect ? 'correct' : 'incorrect'} attempt for problem ${problem.unique_problem_id}`);
+            } catch (error) {
+                console.error('Failed to record problem attempt:', error);
+            }
+    };
+
     const loadProblems = async () => {
-        setLoading(true);
-        try {
-            let query = supabase
-                .from('Problems_DataBank')
-                .select('*');
+    setLoading(true);
+    try {
+        // Strategy: Use database-level randomization with larger sample size
+        
+        // First, get a count of available problems to determine sample size
+        let countQuery = supabase
+            .from('Problems_DataBank')
+            .select('*', { count: 'exact', head: true });
 
-            // Apply filters
-            if (filters.topic) {
-                query = query.eq('topic', filters.topic);
-            }
-            
-            // Filter by difficulty (difficulty column is text, so we convert our numeric filter)
-            query = query.eq('difficulty', filters.difficulty.toString());
+        if (filters.topic) {
+            countQuery = countQuery.eq('topic', filters.topic);
+        }
+        countQuery = countQuery.eq('difficulty', filters.difficulty.toString());
 
-            const { data, error } = await query
-                .limit(filters.problemCount * 3) // Get more than needed for randomization
-                .order('unique_problem_id', { ascending: false });
+        const { count, error: countError } = await countQuery;
+        
+        if (countError) {
+            console.error('Error getting problem count:', countError);
+        }
 
-            if (error) {
-                console.error('Error fetching problems:', error);
-                throw error;
-            }
+        // Calculate sample size - get 5-10x more than needed (min 50, max 500)
+        const availableProblems = count || 1000; // Fallback if count fails
+        const multiplier = Math.min(Math.max(5, Math.ceil(50 / filters.problemCount)), 10);
+        const sampleSize = Math.min(
+            Math.max(filters.problemCount * multiplier, 50), 
+            Math.min(500, availableProblems)
+        );
 
-            // Filter out problems with missing essential data
-            const validProblems = (data || []).filter(problem => 
-                problem.problem && problem.problem.trim() !== ''
-            );
+        console.log(`Sampling ${sampleSize} from ~${availableProblems} available problems`);
 
-            // Randomize and limit to requested count
-            const shuffled = validProblems.sort(() => 0.5 - Math.random());
-            const selectedProblems = shuffled.slice(0, filters.problemCount);
-            
-            setProblems(selectedProblems);
-            setShowProblems(true);
-            return selectedProblems;
-        } catch (error) {
-            console.error('Error loading problems:', error);
+        // Use database randomization with TABLESAMPLE or random ordering
+        let query = supabase
+            .from('Problems_DataBank')
+            .select('*');
+
+        // Apply filters
+        if (filters.topic) {
+            query = query.eq('topic', filters.topic);
+        }
+        query = query.eq('difficulty', filters.difficulty.toString());
+
+        // Add session-based offset for variety across sessions
+        const sessionOffset = Math.floor(Math.random() * Math.max(1, availableProblems - sampleSize));
+        
+        const { data, error } = await query
+            .range(sessionOffset, sessionOffset + sampleSize - 1);
+
+        if (error) {
+            console.error('Error fetching problems:', error);
+            throw error;
+        }
+
+        // Filter out problems with missing essential data
+        const validProblems = (data || []).filter(problem => 
+            problem.problem && problem.problem.trim() !== ''
+        );
+
+        if (validProblems.length === 0) {
             setProblems([]);
             return [];
-        } finally {
-            setLoading(false);
         }
-    };
+
+        // Client-side Fisher-Yates shuffle on the smaller sample
+        const shuffleArray = (array: Problem[]) => {
+            const shuffled = [...array];
+            
+            // Add timestamp entropy for cross-session variation
+            const entropy = Date.now() % 1000;
+            
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                // Multiple random calls for better distribution
+                const rand1 = Math.random();
+                const rand2 = Math.random();
+                const combined = (rand1 + rand2 + entropy / 1000) % 1;
+                const j = Math.floor(combined * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        };
+
+        const shuffledProblems = shuffleArray(validProblems);
+        const selectedProblems = shuffledProblems.slice(0, Math.min(filters.problemCount, shuffledProblems.length));
+        
+        // Log for debugging
+        console.log(`Selected ${selectedProblems.length} problems from ${validProblems.length} sampled problems`);
+        console.log('Sample range:', sessionOffset, 'to', sessionOffset + sampleSize - 1);
+        console.log('Selected problem IDs:', selectedProblems.map(p => p.unique_problem_id));
+        
+        setProblems(selectedProblems);
+        setShowProblems(true);
+        return selectedProblems;
+    } catch (error) {
+        console.error('Error loading problems:', error);
+        setProblems([]);
+        return [];
+    } finally {
+        setLoading(false);
+    }
+};
 
     const handleStartPractice = async () => {
         const loadedProblems = await loadProblems();
@@ -567,7 +661,7 @@ export default function ProblemsSolvedWidget({
                 xpGained: 0
             }
         }));
-        
+        recordProblemAttempt(false, timeSpent, '', 0);
         setIsActive(false);
     };
 
@@ -629,7 +723,7 @@ export default function ProblemsSolvedWidget({
         }));
         
         
-        
+        recordProblemAttempt(isCorrect, timeSpent, state.userAnswer, xpGained);
         setIsActive(false);
     };
 
@@ -668,48 +762,58 @@ export default function ProblemsSolvedWidget({
         }));
         
         
-        
+        recordProblemAttempt(isCorrect, timeSpent, option, xpGained);
         setIsActive(false);
     };
 
     useEffect(() => {
-        if (showReview && !sessionXPSaved && !savingInProgressRef.current) {
-            // Auto-save when review is shown (session completed) - but only once
-            const saveSessionData = async () => {
-                if (savingInProgressRef.current) {
-                    console.log('Save already in progress, skipping...');
-                    return;
+    if (showReview && !sessionXPSaved && !savingInProgressRef.current) {
+        // Auto-save when review is shown (session completed) - but only once
+        const saveSessionData = async () => {
+            if (savingInProgressRef.current) {
+                console.log('Save already in progress, skipping...');
+                return;
+            }
+            
+            savingInProgressRef.current = true;
+            try {
+                console.log('Starting session data save...');
+                
+                // Save XP
+                refreshXPState();
+                
+                // Save problem analytics if available
+                if (problemAnalyticsManager) {
+                    try {
+                        await problemAnalyticsManager.saveStats();
+                        console.log('✅ Problem analytics saved successfully');
+                    } catch (error) {
+                        console.error('❌ Failed to save problem analytics:', error);
+                    }
                 }
                 
-                savingInProgressRef.current = true;
-                try {
-                    console.log('Starting session data save...');
-                    
-                    // Save XP
-                    refreshXPState();
-                    
-                    // Save bookmarks
-                    const bookmarkedProblemIds = Object.entries(problemStates)
-                        .filter(([_, state]) => state.isBookmarked)
-                        .map(([problemId, _]) => problemId);
-                    
-                    if (bookmarkedProblemIds.length > 0) {
-                        await saveBookmarksToDatabase(bookmarkedProblemIds);
-                        console.log(`✅ Saved ${bookmarkedProblemIds.length} bookmarks`);
-                    }
-                    
-                    setSessionXPSaved(true);
-                    console.log('✅ Session data saved successfully');
-                } catch (error) {
-                    console.error('❌ Failed to save session data:', error);
-                } finally {
-                    savingInProgressRef.current = false;
+                // Save bookmarks
+                const bookmarkedProblemIds = Object.entries(problemStates)
+                    .filter(([_, state]) => state.isBookmarked)
+                    .map(([problemId, _]) => problemId);
+                
+                if (bookmarkedProblemIds.length > 0) {
+                    await saveBookmarksToDatabase(bookmarkedProblemIds);
+                    console.log(`✅ Saved ${bookmarkedProblemIds.length} bookmarks`);
                 }
-            };
-            
-            saveSessionData();
-        }
-    }, [showReview, sessionXPSaved, problemStates, user]);
+                
+                setSessionXPSaved(true);
+                console.log('✅ Session data saved successfully');
+            } catch (error) {
+                console.error('❌ Failed to save session data:', error);
+            } finally {
+                savingInProgressRef.current = false;
+            }
+        };
+        
+        saveSessionData();
+    }
+}, [showReview, sessionXPSaved, problemStates, user, problemAnalyticsManager]);
 
     useEffect(() => {
         if (showProblems && !showReview) {

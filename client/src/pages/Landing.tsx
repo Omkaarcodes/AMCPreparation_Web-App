@@ -2,7 +2,7 @@ import { Button } from "../components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/infocard"
 import { Badge } from "../components/ui/badge"
 import * as THREE from 'three'
-import { motion, useScroll, useTransform, useInView } from "framer-motion"
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion"
 import {
   Brain,
   Target,
@@ -25,9 +25,22 @@ import { useEffect, useRef, useState } from "react"
 import InteractiveDemo from "../components/ui/InteractiveDemo"
 import { useNavigate } from "react-router-dom"
 
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+
+
+interface FAQItem {
+    question: string;
+    answer: string;
+    category: string;
+}
+
+
 export default function LandingPage() {
   const navigate = useNavigate()
   const { scrollYProgress } = useScroll()
+
+  const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
+
 
   // Parallax transforms
   const yBg = useTransform(scrollYProgress, [0, 1], ['0%', '50%'])
@@ -107,6 +120,15 @@ export default function LandingPage() {
       bgColor: "bg-orange-600",
       shadowColor: "shadow-orange-600/25",
     },
+  ]
+
+  // Sample data for the bar chart
+  const topicProgressData = [
+    { topic: "Algebra", solved: 45, accuracy: 85 },
+    { topic: "Geometry", solved: 32, accuracy: 78 },
+    { topic: "Number Theory", solved: 28, accuracy: 92 },
+    { topic: "Combinatorics", solved: 22, accuracy: 71 },
+    { topic: "Probability", solved: 18, accuracy: 88 },
   ]
 
   const stats = [
@@ -197,6 +219,74 @@ export default function LandingPage() {
     }
   `
 
+  
+// Add this data array after the recentActivities array (around line 400)
+const faqData: FAQItem[] = [
+    {
+        question: "How is XP calculated and what can I do to earn more?",
+        answer: "XP is earned through various activities: solving problems (+10-50 XP based on difficulty), completing quizzes (+50 XP), daily login bonuses (+25 XP), maintaining streaks (bonus multipliers), and achieving milestones. Focus on consistent daily practice to maximize your XP gains!",
+        category: "XP & Progression"
+    },
+    {
+        question: "What happens when I level up?",
+        answer: "When you level up, you unlock new features, get achievement badges, and receive bonus XP. Higher levels also give you access to more advanced problem sets and exclusive challenges. Your level is displayed on your profile and leaderboards.",
+        category: "XP & Progression"
+    },
+    {
+        question: "How do streaks work and why are they important?",
+        answer: "Streaks track consecutive days of activity on the platform. Each day you solve at least one problem or earn XP, your streak continues. Longer streaks provide XP multipliers and unlock special rewards. If you miss a day, your streak resets to 0.",
+        category: "XP & Progression"
+    },
+    {
+        question: "What types of problems are available?",
+        answer: "We offer AMC 10 and AMC 12 problems across all major topics: Algebra, Geometry, Number Theory, Combinatorics, and Probability. Problems are categorized by difficulty (Easy, Medium, Hard) and source (official AMC contests, practice problems, and community contributions).",
+        category: "Practice & Problems"
+    },
+    {
+        question: "How do mock exams work?",
+        answer: "Mock exams simulate real AMC conditions with 25 problems in 75 minutes. You can take unlimited practice exams, and each attempt provides detailed analytics on your performance, time management, and areas for improvement.",
+        category: "Practice & Problems"
+    },
+    {
+        question: "What is the Error Journal?",
+        answer: "The Error Journal automatically tracks problems you've gotten wrong, categorizes your mistakes, and schedules them for review using spaced repetition. This helps you learn from mistakes and avoid repeating them in future problems.",
+        category: "Practice & Problems"
+    },
+    {
+        question: "How do I bookmark problems for later?",
+        answer: "Click the bookmark icon on any problem to save it to your personal collection. Bookmarked problems can be accessed from the 'Saved Problems' section in the Library menu, where you can organize them by topic or difficulty.",
+        category: "Features"
+    },
+    {
+        question: "Can I practice specific topics?",
+        answer: "Yes! Use the Topic Practice feature to focus on specific areas like Algebra or Geometry. You can filter problems by difficulty, source, and even specific subtopics to create customized practice sessions.",
+        category: "Features"
+    },
+    {
+        question: "Is my progress saved if I lose internet connection?",
+        answer: "Yes! The app works offline and saves your progress locally. When you reconnect to the internet, all your XP, solved problems, and other data will automatically sync to our servers.",
+        category: "Technical"
+    },
+    {
+        question: "How can I track my improvement over time?",
+        answer: "Visit the Analytics section to see detailed graphs of your progress, including accuracy trends, topic mastery levels, daily XP gains, and performance comparisons over different time periods.",
+        category: "Technical"
+    }
+];
+
+// Add this function after the handleNavigate function (around line 450)
+const toggleFAQ = (index: number) => {
+    setExpandedFAQ(expandedFAQ === index ? null : index);
+};
+
+const getFAQsByCategory = () => {
+    const categories = ['XP & Progression', 'Practice & Problems', 'Features', 'Technical'];
+    return categories.map(category => ({
+        category,
+        faqs: faqData.filter(faq => faq.category === category)
+    }));
+};
+
   useEffect(() => {
     const styleElement = document.createElement('style')
     styleElement.textContent = globalStyles
@@ -261,12 +351,12 @@ export default function LandingPage() {
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <Brain className="h-8 w-8 text-blue-400" />
+              {/* <Brain className="h-8 w-8 text-blue-400" /> */}
               <span className="text-xl font-bold">AMCraft</span>
             </motion.div>
             
             <nav className="hidden md:flex items-center space-x-8">
-              {["Features", "Demo", "About", "Suggest Ideas"].map((item, index) => (
+              {["Features", "Demo", "About", "FAQ", "Suggest Ideas"].map((item, index) => (
                 <motion.button
                   key={item}
                   initial={{ opacity: 0, y: -20 }}
@@ -375,8 +465,8 @@ export default function LandingPage() {
                   whileTap={{ scale: 0.95 }}
                   className="pulse-glow"
                 >
-                  <Button size="lg" className="shimmer">
-                    Start Practicing Free
+                  <Button size="lg" className="shimmer" onClick={handleGetStarted}>
+                    Start Practicing For Free
                   </Button>
                 </motion.div>
                 
@@ -586,23 +676,36 @@ export default function LandingPage() {
                   className="text-center"
                   whileHover={{ scale: 1.05 }}
                 >
-                  <motion.div 
-                    className="text-4xl font-bold text-blue-400 mb-2"
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    Level 12
-                  </motion.div>
-                  <div className="text-gray-400">Mathematical Warrior</div>
-                  <div className="w-full bg-gray-700 rounded-full h-3 mt-4">
-                    <motion.div 
-                      className="bg-blue-600 h-3 rounded-full"
-                      initial={{ width: "0%" }}
-                      whileInView={{ width: "75%" }}
-                      transition={{ duration: 2, ease: "easeOut" }}
-                    />
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white">Topic Progress</h3>
+                    <BarChart3 className="h-6 w-6 text-blue-400" />
                   </div>
-                  <div className="text-sm text-gray-400 mt-2">2,340 / 3,000 XP</div>
+                  
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topicProgressData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis 
+                          dataKey="topic" 
+                          stroke="#9ca3af"
+                          fontSize={12}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis stroke="#9ca3af" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#1e293b', 
+                            border: '1px solid #475569',
+                            borderRadius: '8px',
+                            color: '#f8fafc'
+                          }} 
+                        />
+                        <Bar dataKey="solved" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </motion.div>
 
                 <motion.div 
@@ -899,6 +1002,136 @@ export default function LandingPage() {
                 </div>
               </div>
             </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto max-w-4xl">
+          <motion.div 
+            className="text-center space-y-4 mb-16"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            <motion.h2 
+              variants={fadeInUp}
+              className="text-3xl sm:text-4xl font-bold"
+            >
+              Frequently Asked Questions
+            </motion.h2>
+            <motion.p
+              variants={fadeInUp}
+              className="text-xl text-gray-400 max-w-2xl mx-auto"
+            >
+              Everything you need to know about AMCraft and how it can transform your AMC preparation journey.
+            </motion.p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="space-y-8"
+          >
+            {getFAQsByCategory().map((categoryGroup, categoryIndex) => (
+              <motion.div
+                key={categoryGroup.category}
+                variants={fadeInUp}
+                transition={{ duration: 0.6, delay: categoryIndex * 0.1 }}
+                className="space-y-4"
+              >
+                <motion.div
+                  className="flex items-center gap-3 mb-6"
+                  whileHover={{ x: 5 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <BookOpen className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white border-b border-gray-700 pb-1">
+                    {categoryGroup.category}
+                  </h3>
+                </motion.div>
+                
+                <div className="space-y-3">
+                  {categoryGroup.faqs.map((faq, faqIndex) => {
+                    const globalIndex = faqData.findIndex(item => 
+                      item.question === faq.question
+                    )
+                    const isExpanded = expandedFAQ === globalIndex
+                    
+                    return (
+                      <motion.div
+                        key={globalIndex}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ 
+                          duration: 0.5, 
+                          delay: (categoryIndex * 0.1) + (faqIndex * 0.05) 
+                        }}
+                        className="border border-gray-700 rounded-xl overflow-hidden bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+                        whileHover={{ scale: 1.01, y: -2 }}
+                      >
+                        <motion.button
+                          onClick={() => toggleFAQ(globalIndex)}
+                          className="w-full px-6 py-4 text-left flex items-center justify-between group focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-inset"
+                          whileHover={{ backgroundColor: "rgba(51, 65, 85, 0.3)" }}
+                          whileTap={{ scale: 0.99 }}
+                        >
+                          <span className="text-base font-medium text-gray-200 group-hover:text-white transition-colors pr-4 leading-relaxed">
+                            {faq.question}
+                          </span>
+                          <motion.div
+                            animate={{ rotate: isExpanded ? 180 : 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="flex-shrink-0"
+                          >
+                            <Play className="h-5 w-5 text-gray-400 group-hover:text-blue-400 transition-colors transform rotate-90" />
+                          </motion.div>
+                        </motion.button>
+                        
+                        <motion.div
+                          initial={false}
+                          animate={{
+                            height: isExpanded ? "auto" : 0,
+                            opacity: isExpanded ? 1 : 0
+                          }}
+                          transition={{ 
+                            duration: 0.4, 
+                            ease: "easeInOut" 
+                          }}
+                          className="overflow-hidden"
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ 
+                              opacity: isExpanded ? 1 : 0, 
+                              y: isExpanded ? 0 : -10 
+                            }}
+                            transition={{ 
+                              duration: 0.3, 
+                              delay: isExpanded ? 0.1 : 0 
+                            }}
+                            className="px-6 pb-6 border-t border-gray-700/50"
+                          >
+                            <div className="pt-4">
+                              <p className="text-gray-300 leading-relaxed">
+                                {faq.answer}
+                              </p>
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              </motion.div>
+            ))}
           </motion.div>
         </div>
       </section>
