@@ -35,7 +35,6 @@ This project is built using:
 - **Animations**: Framer Motion for smooth, engaging interactions
 - **UI Components**: Custom component library with Tailwind CSS
 - **Charts**: Recharts for data visualization
-- **3D Graphics**: Three.js for interactive elements
 - **Icons**: Lucide React
 - **Routing**: React Router
 
