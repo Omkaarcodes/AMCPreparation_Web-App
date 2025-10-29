@@ -2,7 +2,7 @@
 
 **Craft Your Journey Towards Mastering Math Competitions Through Intelligent Practice**
 
-AMCraft is a comprehensive web platform designed to help students prepare for AMC 10 and AMC 12 competitions through gamified practice, detailed analytics, and personalized learning tools.
+AMCraft is a comprehensive web platform designed to help students prepare for AMC 10 and AMC 12 competitions through gamified practice, detailed analytics, and personalized learning tools. Delopyed code in the minimumViableProduct branch.
 
 **Live Platform**: https://amcpreparation-webapp.web.app/
 
