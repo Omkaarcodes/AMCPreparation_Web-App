@@ -49,7 +49,7 @@ This project is built using:
 
 ## About the Creator
 
-AMCraft was created by **Omkaar Sampigeadi**, a former AMC competitor who qualified for the American Invitational Mathematics Examination (AIME) in 2025. With experience tutoring over 100 students in competition mathematics since 2023, Omkaar combines his passion for mathematics education with computer science expertise to build tools that make competition math accessible to everyone.
+AMCraft was created by **Omkaar Sampigeadi**, an AMC competitor who qualified for the American Invitational Mathematics Examination (AIME) in 2025. With experience tutoring over 100 students in competition mathematics since 2023, Omkaar combines his passion for mathematics education with computer science expertise to build tools that make competition math accessible to everyone.
 
 ## Mission
 
