@@ -195,7 +195,7 @@ export default function InteractiveDemo() {
 
 if (!isActive && currentProblem === 0 && score === 0) {
     return (
-      <Card className="bg-gray-800 border-gray-700 animate-on-scroll" data-animation="animate-scale-in">
+      <Card className="bg-gray-800 border-gray-700 demo-scale-in">
         <CardHeader className="text-center">
           <CardTitle className="text-white text-2xl mb-4">Interactive AMC Demo</CardTitle>
           <CardDescription className="text-gray-400 text-lg">
@@ -401,12 +401,7 @@ if (!isActive && currentProblem === 0 && score === 0) {
             <p className="text-gray-300 mb-4">
               You scored {score} out of {sampleProblems.length} problems. Ready to unlock your full potential?
             </p>
-            <Button
-              size="lg"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all duration-200"
-            >
-              Start Your Free Trial
-            </Button>
+            
           </CardContent>
         </Card>
       )}
