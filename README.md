@@ -9,7 +9,7 @@ AMCraft is a comprehensive web platform designed to help students prepare for AM
 ## Features
 
 ### Core Learning Tools
-- **5,000+ Practice Problems** - Comprehensive collection of AMC 10/12 problems across all major topics
+- **5,000+ Practice Problems** - Comprehensive collection of AMC 10/12 problems across all major topics; repository for data processing is here: https://github.com/Omkaarcodes/AMCraft_DataFiltration
 - **Detailed Analytics** - Visualize accuracy, speed, and progress by topic with comprehensive performance insights
 - **Error Journal** - Track and review mistakes with personalized explanations and problem recommendations
 - **Mock Exams** - Full-length timed practice tests that simulate real AMC conditions and timing
